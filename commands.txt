@@ -1,0 +1,11 @@
+hostname: localhost
+port: 1883
+username: myusername
+password: mypassword
+topics: homeassistant/jonsbo-n3-cwwk-n355
+
+commands:
+    shutdown_delay = /root/scripts/mqtt-listener/shutdown-delay.sh
+    shutdown_cancel = /root/scripts/mqtt-listener/shutdown-cancel.sh
+    reboot_delay = /root/scripts/mqtt-listener/reboot-delay.sh
+    reboot_cancel = /root/scripts/mqtt-listener/reboot-cancel.sh

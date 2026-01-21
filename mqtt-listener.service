@@ -1,0 +1,13 @@
+[Unit]
+Description=MQTT Client Script
+After=network.target
+
+[Service]
+Type=simple
+User=your_username  # Replace with your actual username
+WorkingDirectory=/root/scripts/mqtt-listener/  # Replace with the path to your script directory
+ExecStart=/usr/bin/python3 -u /root/scripts/mqtt-listener/mqtt-listener.py -c /root/scripts/mqtt-listener/commands.txt  # Replace with the full paths
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
