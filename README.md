@@ -28,7 +28,7 @@ The author **is not liable** for:
 
 You **must** review, test, and validate the script and all configured commands before using it in production or on critical systems.
 
-> ⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
+⚠️ AI-assisted / vibe-coded experimental software. Use at your own risk.
 
 ## Disclaimer
 
