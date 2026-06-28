@@ -36,10 +36,6 @@ This project is AI-assisted / vibe-coded software created as a hobby project. It
 
 You are responsible for reviewing the code, testing it in a safe environment, making backups, and understanding what it does before using it on real data. The author is not responsible for damage, data loss, broken systems, security issues, or other problems caused by using this software.
 
-## Data Loss Warning
-
-This application can perform destructive operations, including deleting ZFS snapshots, and backup data. Always test with dry-runs first, check the generated plans, and keep a separate working backup.
-
 ---
 
 ## What it does
