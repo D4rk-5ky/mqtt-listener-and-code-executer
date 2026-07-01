@@ -7,7 +7,7 @@ Type=simple
 User=your_username
 WorkingDirectory=/root/scripts/mqtt-listener/
 ExecStartPre=/bin/sleep 60
-ExecStart=/usr/bin/python3 -u /root/scripts/mqtt-listener/mqtt-listener.py -c /root/scripts/mqtt-listener/commands.txt  # Replace with the full paths
+ExecStart=/usr/bin/python3 -u /root/scripts/mqtt-listener/mqtt-listener.py -c /root/scripts/mqtt-listener/commands.txt
 Restart=always
 
 [Install]
