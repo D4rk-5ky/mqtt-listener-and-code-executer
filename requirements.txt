@@ -1,0 +1,2 @@
+# Preserve the existing four-argument MQTT connection callback.
+paho-mqtt==2.1.0

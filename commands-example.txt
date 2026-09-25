@@ -1,11 +1,26 @@
+# Custom text format, not YAML. Only whole-line comments are supported.
+# Put broker settings before commands. Do not quote values.
+# Broker host (default localhost) and integer port (default 1883).
 hostname: localhost
 port: 1883
+# Authentication is enabled only when BOTH credentials are nonempty.
+# Replace these placeholders or remove both lines for unauthenticated use.
 username: myusername
 password: mypassword
-topics: homeassistant/jonsbo-n3-cwwk-n355
+# Comma-separated topic filters; all filters use the same command map.
+# Use dedicated topics. Retained/repeated messages can execute commands.
+topics: mqtt-listener/example-device/commands
 
+# Optional online announcement; omit this setting to keep legacy behavior.
+# Use a UNIQUE status topic per listener; never reuse a command topic.
+# Sends plain online after connection/reconnection, QoS 1, not retained.
+online_topic: mqtt-listener/example-device/status
+
+# Exact, case-sensitive trimmed payload = trusted shell command.
+# Adapt ALL paths. These helpers may power off/reboot the host.
+# For a first test, use ONLY the harmless mapping from README.md.
 commands:
-    shutdown_delay = /root/scripts/mqtt-listener/shutdown-delay.sh
-    shutdown_cancel = /root/scripts/mqtt-listener/shutdown-cancel.sh
-    reboot_delay = /root/scripts/mqtt-listener/reboot-delay.sh
-    reboot_cancel = /root/scripts/mqtt-listener/reboot-cancel.sh
+	shutdown_delay = /opt/mqtt-listener/shutdown-delay.sh
+	shutdown_cancel = /opt/mqtt-listener/shutdown-cancel.sh
+	reboot_delay = /opt/mqtt-listener/reboot-delay.sh
+	reboot_cancel = /opt/mqtt-listener/reboot-cancel.sh

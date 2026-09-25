@@ -36,13 +36,45 @@ def read_config(file_path):
 # ---------------------------
 # MQTT Callbacks
 # ---------------------------
+def get_online_topic(config, topics):
+    """Reserve a separate publish topic, or leave legacy behavior unchanged."""
+    topic = config.get('online_topic', '').strip()
+    if not topic:
+        return None
+    if any(char in topic for char in ('+', '#', '\x00')) or len(topic.encode('utf-8')) > 65535:
+        print('Online announcement disabled: online_topic must be a valid publish topic')
+        return None
+    if topic in topics:
+        print('Online announcement disabled: online_topic must differ from command topics')
+        return None
+    return topic
+
+
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
     for topic in userdata['topics']:
         client.subscribe(topic)
         print(f"Subscribed to topic: {topic}")
 
+    # Do not wait for PUBACK here: callbacks run inside the MQTT network loop.
+    online_topic = userdata.get('online_topic')
+    if rc == 0 and online_topic:
+        try:
+            result = client.publish(online_topic, payload='online', qos=1, retain=False)
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                print(f"Queued online announcement on topic: {online_topic}")
+            else:
+                print(f"Online announcement could not be queued: {result.rc}")
+        except Exception as e:
+            print(f"Failed to announce online: {e}")
+
+
 def on_message(client, userdata, msg):
+    # MQTT 3 does not identify the publisher. Reserve this exact topic so a
+    # wildcard subscription cannot turn our own announcement into a command.
+    if userdata.get('online_topic') and msg.topic == userdata['online_topic']:
+        return
+
     payload = msg.payload.decode().strip()
     print(f"Received message '{payload}' on topic '{msg.topic}'")
 
@@ -74,7 +106,11 @@ if __name__ == '__main__':
     topics = [t.strip() for t in config.get('topics', '').split(',')]
     commands = config.get('commands', {})
 
-    client = mqtt.Client(userdata={'topics': topics, 'commands': commands})
+    userdata = {'topics': topics, 'commands': commands}
+    online_topic = get_online_topic(config, topics)
+    if online_topic:
+        userdata['online_topic'] = online_topic
+    client = mqtt.Client(userdata=userdata)
     client.on_connect = on_connect
     client.on_message = on_message
 
