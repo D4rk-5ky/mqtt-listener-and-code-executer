@@ -1,3 +1,3 @@
 #!/bin/bash
-(sleep 30 && reboot) &
+(sleep 60 && reboot) &
 echo $! > /tmp/reboot.pid
