@@ -41,10 +41,10 @@ This project targets Linux with Python 3 and `paho-mqtt`. Helpers require Bash a
 
 ## Install and choose an account
 
-Extract the complete project into a directory accessible to the account that will run it. These examples use `/root/Source/MQTT-command-executioner`; adjust it consistently in your config and service.
+Extract the complete project into a directory accessible to the account that will run it. These examples use `/root/Source/mqtt-listener-and-code-executer`; adjust it consistently in your config and service.
 
 ```bash
-cd /root/Source/MQTT-command-executioner
+cd /root/Source/mqtt-listener-and-code-executer
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 cp commands-example.txt commands.txt
@@ -54,7 +54,7 @@ chmod +x mqtt-listener.py scripts/shutdown-delay.sh scripts/shutdown-cancel.sh s
 
 `cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the listener and four helpers executable. The release ZIP records mode `0755` for these five scripts; this command restores it if your extraction tool drops Unix permissions.
 
-The four helpers are in the project-root `scripts/` folder. The example configuration uses `/root/Source/MQTT-command-executioner/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
+The four helpers are in the project-root `scripts/` folder. The example configuration uses `/root/Source/mqtt-listener-and-code-executer/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
 
 ## Configuration: all available options
 
@@ -137,20 +137,20 @@ Quote individual shell arguments or executable paths containing spaces on the ri
 
 ```bash
 .venv/bin/python mqtt-listener.py --help
-.venv/bin/python mqtt-listener.py --config /root/Source/MQTT-command-executioner/commands.txt
+.venv/bin/python mqtt-listener.py --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
 | Flag | Value / required | Purpose and example |
 | --- | --- | --- |
 | `-h`, `--help` | No value; optional | Print usage and exit without reading config or connecting. Example: `mqtt-listener.py -h`. Paho must still be installed because it is imported first. |
-| `-c`, `--config` | File path; required | Read this file. Example: `mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt`. Relative paths use the current working directory. There is no default config file. |
+| `-c`, `--config` | File path; required | Read this file. Example: `mqtt-listener.py -c /root/Source/mqtt-listener-and-code-executer/commands.txt`. Relative paths use the current working directory. There is no default config file. |
 
 For direct execution, activate the virtual environment so the existing `#!/usr/bin/env python3` header selects Python with Paho installed:
 
 ```bash
 . .venv/bin/activate
 ./mqtt-listener.py --help
-./mqtt-listener.py --config /root/Source/MQTT-command-executioner/commands.txt
+./mqtt-listener.py --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
 The shell's `. .venv/bin/activate` loads the environment into the current shell; `./` selects the script in the current directory. If execution is denied after extraction, restore permissions with the installation command above. A filesystem mounted with execution disabled also prevents direct execution; use the explicit interpreter commands above or an executable filesystem. Explicit `.venv/bin/python` invocation does not require activation. These are the only application flags: there is no `--version` or `--dry-run`. The package version is in [VERSION](VERSION). Python's `-u`, used in the service, makes stdout/stderr unbuffered for prompt logs; it is an interpreter flag. Missing/unknown arguments produce argparse errors. Missing/unreadable config, an invalid port, or initial connection failure can stop the application. Ctrl+C stops a foreground listener but does not reliably cancel previously launched commands.
@@ -178,12 +178,12 @@ Repeated starts overwrite the PID file and can leave earlier timers running. Can
 
 ## systemd service
 
-The supplied [mqtt-listener.service](mqtt-listener.service) uses `/root/Source/MQTT-command-executioner/` as its working directory, with `mqtt-listener.py` and `commands.txt` in that directory. Before installing it, replace the placeholder account and select the Python interpreter containing Paho. For the virtual environment installed above, use:
+The supplied [mqtt-listener.service](mqtt-listener.service) uses `/root/Source/mqtt-listener-and-code-executer/` as its working directory, with `mqtt-listener.py` and `commands.txt` in that directory. Before installing it, replace the placeholder account and select the Python interpreter containing Paho. For the virtual environment installed above, use:
 
 ```ini
 User=your_username
-WorkingDirectory=/root/Source/MQTT-command-executioner/
-ExecStart=/root/Source/MQTT-command-executioner/.venv/bin/python -u /root/Source/MQTT-command-executioner/mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt
+WorkingDirectory=/root/Source/mqtt-listener-and-code-executer/
+ExecStart=/root/Source/mqtt-listener-and-code-executer/.venv/bin/python -u /root/Source/mqtt-listener-and-code-executer/mqtt-listener.py -c /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
 Replace `your_username` with your chosen account. The packaged unit uses `/usr/bin/python3` and the requested project paths; its placeholder account must be changed to an account that can access this location. When using a virtual environment, select its Python interpreter.
@@ -223,7 +223,7 @@ python3 -m venv .build-venv
 .build-venv/bin/python -m pip install -r requirements-build.txt
 .build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec
 ./dist/mqtt-listener --help
-./dist/mqtt-listener --config /root/Source/MQTT-command-executioner/commands.txt
+./dist/mqtt-listener --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
 On Windows PowerShell, use the same spec:
@@ -242,10 +242,10 @@ Keep `commands.txt` and all scripts referenced by its command mappings on the ta
 To use a Linux build with the supplied service, keep its other settings and set its adapted `ExecStart` to:
 
 ```ini
-ExecStart=/root/Source/MQTT-command-executioner/mqtt-listener -c /root/Source/MQTT-command-executioner/commands.txt
+ExecStart=/root/Source/mqtt-listener-and-code-executer/mqtt-listener -c /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-Install your built executable at that path first. The packaged service launches the Python source from `/root/Source/MQTT-command-executioner`; change `ExecStart` as shown only when using a standalone build. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
+Install your built executable at that path first. The packaged service launches the Python source from `/root/Source/mqtt-listener-and-code-executer`; change `ExecStart` as shown only when using a standalone build. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
 
 ## Offline checks
 

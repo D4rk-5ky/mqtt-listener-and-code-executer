@@ -1,6 +1,6 @@
 # Commented code map
 
-This map explains the current project, including why each operation exists and its limitations. The listener supports complete payload names and shell commands, including spaces, and an optional online announcement. The unit uses `/root/Source/MQTT-command-executioner` for its working directory, listener, and config. Shell scripts, both ignore files, dependency pins, and the build recipe are preserved.
+This map explains the current project, including why each operation exists and its limitations. The listener supports complete payload names and shell commands, including spaces, and an optional online announcement. The unit uses `/root/Source/mqtt-listener-and-code-executer` for its working directory, listener, and config. Shell scripts, both ignore files, dependency pins, and the build recipe are preserved.
 
 ## `mqtt-listener.py`
 
@@ -63,7 +63,7 @@ For a nonempty mapping, `subprocess.Popen(command, shell=True)` starts the confi
 
 ## Configuration and ignore files
 
-`commands-example.txt` lists all seven supported settings/sections and four power-command mappings. Its whole-line comments explain defaults, authentication, topics, status, and paths. Each mapping starts with one literal tab; the parser's `strip()` accepts tabs or spaces. Commented optional examples explain complete Docker payloads, short aliases, quoted paths/arguments, and commands ending in a colon. The four active power payload names and all broker values are preserved; helper paths point to `/root/Source/MQTT-command-executioner/scripts/`. Copy it to a private local `commands.txt`, adapt it, and initially test with only a harmless command. The application does not select this filename automatically.
+`commands-example.txt` lists all seven supported settings/sections and four power-command mappings. Its whole-line comments explain defaults, authentication, topics, status, and paths. Each mapping starts with one literal tab; the parser's `strip()` accepts tabs or spaces. Commented optional examples explain complete Docker payloads, short aliases, quoted paths/arguments, and commands ending in a colon. The four active power payload names and all broker values are preserved; helper paths point to `/root/Source/mqtt-listener-and-code-executer/scripts/`. Copy it to a private local `commands.txt`, adapt it, and initially test with only a harmless command. The application does not select this filename automatically.
 
 `.gitigore` contains `commands*` and `! commands-example.txt`. Its filename is misspelled, so Git does not use it as `.gitignore`. The original bytes are preserved, including the space in the second pattern. Do not rely on this file to exclude credentials. The supplied `.gitignore` has identical contents and does apply `commands*`; its spaced negation does not re-include the example. Both files are retained byte-for-byte.
 
@@ -93,15 +93,15 @@ The shutdown files use `/tmp/shutdown.pid`; reboot files use `/tmp/reboot.pid`. 
 | `[Service]` | Process launch and lifecycle settings. |
 | `Type=simple` | Treats the launched process as the main service without a readiness protocol. |
 | `User=your_username` | Placeholder account; replace it with an account allowed to run the configured commands. |
-| `WorkingDirectory=/root/Source/MQTT-command-executioner/` | Requested project working directory; must exist and be accessible to the selected account. Adapt for your installation. |
+| `WorkingDirectory=/root/Source/mqtt-listener-and-code-executer/` | Requested project working directory; must exist and be accessible to the selected account. Adapt for your installation. |
 | `TimeoutStartSec=180` | Allows up to 180 seconds for service startup, including its pre-start command. |
 | `ExecStartPre=/bin/sleep 60` | Delays each start by 60 seconds; it does not actively probe broker readiness. |
-| `ExecStart=/usr/bin/python3 -u /root/Source/MQTT-command-executioner/mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt` | Starts Python with unbuffered logs (`-u`) and the listener's explicit configuration (`-c`). Change interpreter and paths together for a virtual environment. |
+| `ExecStart=/usr/bin/python3 -u /root/Source/mqtt-listener-and-code-executer/mqtt-listener.py -c /root/Source/mqtt-listener-and-code-executer/commands.txt` | Starts Python with unbuffered logs (`-u`) and the listener's explicit configuration (`-c`). Change interpreter and paths together for a virtual environment. |
 | `Restart=always` | Restarts after process exits according to systemd rules; explicit systemctl stop does not trigger restart. |
 | `[Install]` | Settings used when enabling the service. |
 | `WantedBy=multi-user.target` | Adds the unit to this normal boot target when enabled. |
 
-The README explains every installation/publisher command and its flags: `cd`, Python `-m venv`/`-m pip`, `cp`, `chmod`, `mosquitto_pub`, `sudo`, `systemctl`, and `journalctl`. Its `/root/Source/MQTT-command-executioner` paths are an adaptable example; the packaged service uses this project directory for its working directory and both file paths.
+The README explains every installation/publisher command and its flags: `cd`, Python `-m venv`/`-m pip`, `cp`, `chmod`, `mosquitto_pub`, `sudo`, `systemctl`, and `journalctl`. Its `/root/Source/mqtt-listener-and-code-executer` paths are an adaptable example; the packaged service uses this project directory for its working directory and both file paths.
 
 ## Release and verification files
 

@@ -126,7 +126,7 @@ class ListenerTests(unittest.TestCase):
                          {'shutdown_delay', 'shutdown_cancel', 'reboot_delay', 'reboot_cancel'})
         for command in config['commands'].values():
             self.assertEqual(Path(command).parent,
-                             Path('/root/Source/MQTT-command-executioner/scripts'))
+                             Path('/root/Source/mqtt-listener-and-code-executer/scripts'))
             self.assertTrue((ROOT / 'scripts' / Path(command).name).is_file())
 
     def test_message_trims_and_launches_only_configured_command(self):
