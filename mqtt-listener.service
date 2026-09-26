@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=your_username
-WorkingDirectory=/root/scripts/mqtt-listener/
+WorkingDirectory=/root/Source/MQTT-command-executioner/
 TimeoutStartSec=180
 ExecStartPre=/bin/sleep 60
-ExecStart=/usr/bin/python3 -u /root/scripts/mqtt-listener/mqtt-listener.py -c /root/scripts/mqtt-listener/commands.txt
+ExecStart=/usr/bin/python3 -u /root/Source/MQTT-command-executioner/mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt
 Restart=always
 
 [Install]

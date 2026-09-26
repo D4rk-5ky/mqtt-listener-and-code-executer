@@ -1,5 +1,6 @@
 # Custom text format, not YAML. Only whole-line comments are supported.
-# Put broker settings before commands. Do not quote values.
+# Put broker settings before commands. Do not quote broker values.
+# Shell arguments/paths on the RIGHT of = may need shell quotes.
 # Broker host (default localhost) and integer port (default 1883).
 hostname: localhost
 port: 1883
@@ -17,10 +18,21 @@ topics: mqtt-listener/example-device/commands
 online_topic: mqtt-listener/example-device/status
 
 # Exact, case-sensitive trimmed payload = trusted shell command.
-# Adapt ALL paths. These helpers may power off/reboot the host.
+# Helpers live in the project-root scripts/ folder. Adapt paths if installed elsewhere. These helpers may power off/reboot the host.
 # For a first test, use ONLY the harmless mapping from README.md.
 commands:
-	shutdown_delay = /opt/mqtt-listener/shutdown-delay.sh
-	shutdown_cancel = /opt/mqtt-listener/shutdown-cancel.sh
-	reboot_delay = /opt/mqtt-listener/reboot-delay.sh
-	reboot_cancel = /opt/mqtt-listener/reboot-cancel.sh
+	shutdown_delay = /root/Source/MQTT-command-executioner/scripts/shutdown-delay.sh
+	shutdown_cancel = /root/Source/MQTT-command-executioner/scripts/shutdown-cancel.sh
+	reboot_delay = /root/Source/MQTT-command-executioner/scripts/reboot-delay.sh
+	reboot_cancel = /root/Source/MQTT-command-executioner/scripts/reboot-cancel.sh
+
+# Optional examples: uncomment only the mappings you want to allow.
+# Publish the ENTIRE left side, without surrounding quote characters.
+# Internal spaces are significant; only surrounding whitespace is trimmed.
+# Docker must be installed and accessible to the listener account.
+# docker start open-webui = docker start open-webui
+# start_webui = docker start open-webui
+# Quote individual arguments/paths on the right, not the complete command.
+# run tool = "/opt/my tools/runner" --label="A B"
+# The first = separates fields; later = and a final : remain command text.
+# print label = printf label:

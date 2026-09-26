@@ -18,16 +18,20 @@ def read_config(file_path):
             if not line or line.startswith('#'):
                 continue
 
+            # A mapping is one complete payload and one shell command. Parse it
+            # before section headers so a command ending in ':' stays intact.
+            if section == 'commands' and '=' in line:
+                cmd_key, cmd_value = line.split('=', 1)
+                commands[cmd_key.strip()] = cmd_value.strip()
+                continue
+
             if line.endswith(':'):
                 section = line[:-1].strip()
                 if section == 'commands':
                     config['commands'] = commands
                 continue
 
-            if section == 'commands' and '=' in line:
-                cmd_key, cmd_value = line.split('=', 1)
-                commands[cmd_key.strip()] = cmd_value.strip()
-            elif ':' in line:
+            if ':' in line:
                 key, value = line.split(':', 1)
                 config[key.strip()] = value.strip()
 
@@ -78,6 +82,7 @@ def on_message(client, userdata, msg):
     payload = msg.payload.decode().strip()
     print(f"Received message '{payload}' on topic '{msg.topic}'")
 
+    # Match the whole payload, including internal spaces; never execute raw input.
     command = userdata['commands'].get(payload)
     if command:
         try:
