@@ -1,4 +1,4 @@
-"""Offline contracts for unchanged listener code; no broker or real subprocesses."""
+"""Offline contracts for listener code; no broker or real subprocesses."""
 import contextlib
 import io
 from pathlib import Path
@@ -64,6 +64,51 @@ class ListenerTests(unittest.TestCase):
         self.assertEqual(config, {'hostname': 'broker', 'topics': 'one, two',
                                   'commands': {'ping': 'echo A=B'}})
 
+    def test_multiword_mapping_reaches_callback_as_complete_command(self):
+        for indent in ('', ' ', '\t'):
+            with self.subTest(indent=repr(indent)):
+                config = self.parse('commands:\n' + indent +
+                                    'docker start open-webui = docker start open-webui\n')
+                self.assertEqual(config['commands'],
+                                 {'docker start open-webui': 'docker start open-webui'})
+                self.message(b'  docker start open-webui\n', config['commands']).assert_called_once_with(
+                    'docker start open-webui', shell=True)
+
+    def test_multiword_payload_requires_exact_internal_text(self):
+        config = self.parse('commands:\ndocker start open-webui = docker start open-webui\n')
+        for payload in (b'docker', b'docker start', b'Docker start open-webui',
+                        b'docker  start open-webui', b'docker start open-webui; reboot',
+                        b'"docker start open-webui"'):
+            with self.subTest(payload=payload):
+                self.message(payload, config['commands']).assert_not_called()
+
+    def test_command_ending_in_colon_preserves_mapping_and_following_commands(self):
+        config = self.parse('commands:\nprint label = printf label:\n'
+                            'docker start open-webui = docker start open-webui\n')
+        self.assertEqual(config['commands'], {'print label': 'printf label:',
+                         'docker start open-webui': 'docker start open-webui'})
+        self.message(b'print label', config['commands']).assert_called_once_with('printf label:', shell=True)
+        self.message(b'docker start open-webui', config['commands']).assert_called_once_with(
+            'docker start open-webui', shell=True)
+
+    def test_quoted_arguments_equals_and_internal_spaces_are_preserved(self):
+        command = '\"/opt/my tools/runner\" --label=\"A B=C\"  --url=https://example.test/'
+        config = self.parse('commands:\nrun tool = ' + command + '\n')
+        self.message(b'run tool', config['commands']).assert_called_once_with(command, shell=True)
+
+    def test_main_and_callback_keep_multiword_mapping_and_status_isolation(self):
+        constructor, _ = self.run_cli(['-c', 'config.txt'],
+            'topics: device/#\nonline_topic: device/status\ncommands:\n'
+            'docker start open-webui = docker start open-webui\n')
+        data = constructor.call_args.kwargs['userdata']
+        client = constructor.return_value
+        with patch('subprocess.Popen') as launch, contextlib.redirect_stdout(io.StringIO()):
+            for topic in ('device/status', 'device/commands'):
+                client.on_message(client, data, types.SimpleNamespace(
+                    topic=topic, payload=b'docker start open-webui'))
+                self.assertEqual(launch.call_count, int(topic == 'device/commands'))
+        launch.assert_called_once_with('docker start open-webui', shell=True)
+
     def test_config_duplicates_use_last_value(self):
         config = self.parse('hostname: first\nhostname: second\ncommands:\nx = one\nx = two\n')
         self.assertEqual(config['hostname'], 'second')
@@ -80,7 +125,9 @@ class ListenerTests(unittest.TestCase):
         self.assertEqual(set(config['commands']),
                          {'shutdown_delay', 'shutdown_cancel', 'reboot_delay', 'reboot_cancel'})
         for command in config['commands'].values():
-            self.assertTrue((ROOT / Path(command).name).is_file())
+            self.assertEqual(Path(command).parent,
+                             Path('/root/Source/mqtt-listener-and-code-executer/scripts'))
+            self.assertTrue((ROOT / 'scripts' / Path(command).name).is_file())
 
     def test_message_trims_and_launches_only_configured_command(self):
         launch = self.message(b'  ping\n', {'ping': 'echo safe'})
@@ -144,7 +191,9 @@ class ListenerTests(unittest.TestCase):
                     contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as caught:
                 runpy.run_path(str(SCRIPT), run_name='__main__')
             self.assertEqual(caught.exception.code, 0)
-            self.assertIn('-c CONFIG, --config CONFIG', output.getvalue())
+            # argparse versions differ in whether aliases repeat the metavar.
+            self.assertIn('-c', output.getvalue())
+            self.assertIn('--config CONFIG', output.getvalue())
             self.assertIn('-h, --help', output.getvalue())
             mqtt.Client.assert_not_called()
 

@@ -1,0 +1,134 @@
+[
+  {
+    "path": ".gitignore",
+    "size": 34,
+    "sha256": "a1c5b86c8e4ed7c15e86e2e4881eaed335348a1e2c233ac768cab4d88f57550d",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": ".gitigore",
+    "size": 34,
+    "sha256": "a1c5b86c8e4ed7c15e86e2e4881eaed335348a1e2c233ac768cab4d88f57550d",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "README.md",
+    "size": 17855,
+    "sha256": "0cb317d1a841e2b31df7196ccfa084874996029656c93208dbd775d091007956",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "VERIFICATION.md",
+    "size": 5644,
+    "sha256": "e34750724b3c214d33258ec3f8ddb27e24207ea8e7b4a48128a96c12e5ad1269",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "VERSION",
+    "size": 6,
+    "sha256": "a5dd346546a384362936b97a4c2f5da2d3d253043ea9679aa7b97d89550dfdbd",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "VERSIONING.md",
+    "size": 3594,
+    "sha256": "7841255116841b1dd24da9adcfcb597d18e85e97982e93baf66109b4f77e4efb",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "commands-example.txt",
+    "size": 1298,
+    "sha256": "668cd57c0a18fef3311e5507c71d69660b3ae7a045b1d6b627daca5166af11fa",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "commented_code_map.md",
+    "size": 20299,
+    "sha256": "d2488a0e94d0c4a6bc82d37220785b367a7e47c555bdac4502138a8a31ccfa7c",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "manifest.sha256",
+    "size": 1687,
+    "sha256": "f53ca38ae69e2b0da6900d43e78408a65180641ec1e2c5e90a8ff6d2f0c6a933",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "mqtt-listener.py",
+    "size": 4245,
+    "sha256": "cf2c07148eb9058f9a99713830f9a57f696c55e8ce4c2c687e177202a384cfee",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "mqtt-listener.service",
+    "size": 366,
+    "sha256": "1e849f8b3252471b30924beb8c0b815a44930819964399bdda38b8a6a1baf906",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "mqtt-listener.spec",
+    "size": 858,
+    "sha256": "d431d5cb4111e6320e00212640ff5df1a7739f6128dc512bf3bb925edc1e1c49",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "original-manifest.json",
+    "size": 1628,
+    "sha256": "e924d8680db9c6e079a1b01c870e88ac3998af3f7ce05b0f52ded6ef80d4c9d1",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "previous-release-manifest.json",
+    "size": 2231,
+    "sha256": "a56885f6598ba0d76854bee7a9abb0742c700e7e86cc271c8e73d1922baa8464",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "reboot-cancel.sh",
+    "size": 89,
+    "sha256": "cee6c36f7df542b98c3ef126169e0ca94889289955a67f5c7a7da82444aa409f",
+    "zip_unix_mode": "0o100755"
+  },
+  {
+    "path": "reboot-delay.sh",
+    "size": 61,
+    "sha256": "fdce9eb50341959db0ed04880c59bebf0069ff60d7aeb30313fbf6189c349694",
+    "zip_unix_mode": "0o100755"
+  },
+  {
+    "path": "requirements-build.txt",
+    "size": 40,
+    "sha256": "62d2297563d627ecc05af21002ca3659ca1714957a089e0d5a7e40ebdd2e5ed1",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "requirements.txt",
+    "size": 81,
+    "sha256": "d700980e5fe5a891688a5cbb4e57336d7664443a00546e6a549f9eb7f3f62cea",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "shutdown-cancel.sh",
+    "size": 95,
+    "sha256": "95dddfb0b686436bbef0f582abf749c921a027f2db1ce40a0e5693977ae05b18",
+    "zip_unix_mode": "0o100755"
+  },
+  {
+    "path": "shutdown-delay.sh",
+    "size": 72,
+    "sha256": "016f999fc103cdc880bb712b2083e6c81a61a88198e9b3c03c9101bcfa74a9c4",
+    "zip_unix_mode": "0o100755"
+  },
+  {
+    "path": "tests/test_listener.py",
+    "size": 8209,
+    "sha256": "975c1ff39132f77e496ee9f8d618549f90c7bfb6b4f8e62704f4ee16243746d0",
+    "zip_unix_mode": "0o0"
+  },
+  {
+    "path": "tests/test_online.py",
+    "size": 4432,
+    "sha256": "f86ad9418a2f9cbd7d28ffe41f15d4e36b8c6e3c42ab1044b9d7c5affaf8c4e0",
+    "zip_unix_mode": "0o0"
+  }
+]
