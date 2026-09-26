@@ -21,10 +21,10 @@ online_topic: mqtt-listener/example-device/status
 # Helpers live in the project-root scripts/ folder. Adapt paths if installed elsewhere. These helpers may power off/reboot the host.
 # For a first test, use ONLY the harmless mapping from README.md.
 commands:
-	shutdown_delay = /root/Source/MQTT-command-executioner/scripts/shutdown-delay.sh
-	shutdown_cancel = /root/Source/MQTT-command-executioner/scripts/shutdown-cancel.sh
-	reboot_delay = /root/Source/MQTT-command-executioner/scripts/reboot-delay.sh
-	reboot_cancel = /root/Source/MQTT-command-executioner/scripts/reboot-cancel.sh
+	shutdown_delay = /root/Source/mqtt-listener-and-code-executer/scripts/shutdown-delay.sh
+	shutdown_cancel = /root/Source/mqtt-listener-and-code-executer/scripts/shutdown-cancel.sh
+	reboot_delay = /root/Source/mqtt-listener-and-code-executer/scripts/reboot-delay.sh
+	reboot_cancel = /root/Source/mqtt-listener-and-code-executer/scripts/reboot-cancel.sh
 
 # Optional examples: uncomment only the mappings you want to allow.
 # Publish the ENTIRE left side, without surrounding quote characters.

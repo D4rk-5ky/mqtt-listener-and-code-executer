@@ -1,6 +1,13 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the uploaded baseline for the current release is `0.0.2`, and this release is `0.0.5`. `VERSION` records the package version; the application has no version CLI flag.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the uploaded baseline for the current release is `0.0.2`, and this release is `0.0.6`. `VERSION` records the package version; the application has no version CLI flag.
+
+## 0.0.6 — 2026-09-26
+
+- Changed the deployment directory to `/root/Source/mqtt-listener-and-code-executer/` in the service working directory, listener script path, config path, README, and code map.
+- Updated all four active helper paths in `commands-example.txt` and the existing configuration-example test to `/root/Source/mqtt-listener-and-code-executer/scripts/`. The helpers remain under the project-root `scripts/` directory.
+- Incremented `VERSION` from `0.0.5` to `0.0.6`; refreshed the verification report and release checksums. Retained historical release entries unchanged.
+- Listener code, helper contents, executable permissions, other service directives, all original files, and both disclaimers remain intact. Verified the requested paths, archive preservation and checksums, compilation, Bash syntax, direct CLI execution, and all 34 offline tests. Live Linux systemd operation remains untested.
 
 ## 0.0.5 — 2026-09-26
 
