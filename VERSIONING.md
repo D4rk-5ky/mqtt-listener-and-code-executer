@@ -1,6 +1,38 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The supplied source has no declared version, so this release starts at `0.0.1` from an unversioned baseline. `VERSION` records the package version; the application has no version CLI flag.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the uploaded baseline for the current release is `0.0.2`, and this release is `0.0.6`. `VERSION` records the package version; the application has no version CLI flag.
+
+## 0.0.6 — 2026-09-26
+
+- Changed the deployment directory to `/root/Source/mqtt-listener-and-code-executer/` in the service working directory, listener script path, config path, README, and code map.
+- Updated all four active helper paths in `commands-example.txt` and the existing configuration-example test to `/root/Source/mqtt-listener-and-code-executer/scripts/`. The helpers remain under the project-root `scripts/` directory.
+- Incremented `VERSION` from `0.0.5` to `0.0.6`; refreshed the verification report and release checksums. Retained historical release entries unchanged.
+- Listener code, helper contents, executable permissions, other service directives, all original files, and both disclaimers remain intact. Verified the requested paths, archive preservation and checksums, compilation, Bash syntax, direct CLI execution, and all 34 offline tests. Live Linux systemd operation remains untested.
+
+## 0.0.5 — 2026-09-26
+
+- Updated `mqtt-listener.service`: `WorkingDirectory=/root/Source/MQTT-command-executioner/` and `ExecStart=/usr/bin/python3 -u /root/Source/MQTT-command-executioner/mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt`.
+- Preserved the Python interpreter choice, placeholder service account, startup ordering, 60-second delay, timeout, and restart policy. README explains replacing the account and selecting the virtual-environment interpreter when needed.
+- Retained version 0.0.4's `scripts/` layout and complete config examples. Updated current README, code map, verification report, and checksums for the service paths. All application, helper, and test code is unchanged from 0.0.4.
+- Incremented the already-created 0.0.4 package to 0.0.5. Verified the exact service paths, unchanged remaining service directives, final archive contents and permissions, compilation, CLI, Bash syntax, and all 34 offline tests. Live Linux systemd testing is still required.
+
+## 0.0.4 — 2026-09-26
+
+- Moved `reboot-delay.sh`, `reboot-cancel.sh`, `shutdown-delay.sh`, and `shutdown-cancel.sh` from the project root into its `scripts/` directory as requested. Their bytes and executable mode `0755` are unchanged; the old root copies are replaced by these relocated files.
+- Updated all four active helper mappings in the existing `commands-example.txt` to `/root/Source/MQTT-command-executioner/scripts/`. Kept the supplied example filename, payload names, broker options, and commented optional mappings.
+- Updated README installation, CLI, service-adaptation, and permission examples to use `/root/Source/MQTT-command-executioner`, and documented access through `/root`. Updated the code map for the helper locations. Both disclaimers remain unchanged.
+- Updated the existing configuration-example test to check the deployment prefix and files under `scripts/`. Listener code, safety behavior, helper content, service file, dependency pins, and build recipe remain unchanged.
+- Incremented `VERSION` from `0.0.3` to `0.0.4`, refreshed verification notes and checksums, and compared the final ZIP with version `0.0.3` and the original upload, accounting for the four requested relocations. All 34 offline tests pass; see `VERIFICATION.md` for checks and limitations.
+
+## 0.0.3 — 2026-09-26
+
+- Inspected all 22 files in the uploaded archive before editing. Preserved every path, including both ignore files, the service, helpers, build recipe, requirements, and historical manifests.
+- Set `mqtt-listener.py` to Unix mode `0755` and recorded that permission in the ZIP. Kept its existing `#!/usr/bin/env python3` header; documented direct execution, virtual-environment selection, and permission restoration after extraction.
+- Confirmed that the uploaded parser already accepts spaces in both payload names and commands, including `docker start open-webui = docker start open-webui`. Kept exact whole-payload lookup and `Popen(command, shell=True)` behavior. Moved mapping parsing ahead of section-header detection so a shell command ending in `:` no longer becomes a section header or prevents following mappings from being read. Added comments explaining complete strings and configured-command-only execution.
+- Added five regression tests for whole multiword mappings, indentation, exact matching/rejection, quoted arguments, embedded equals signs, trailing colons, subsequent mappings, main-block wiring, and status-topic isolation. Adjusted one existing help assertion for argparse versions that do not repeat the metavar for aliases; application flags are unchanged. All 34 tests pass.
+- Updated README for current behavior and every application flag, complete-payload publisher usage, Docker requirements, quoting, permissions, and existing ignore-file limitations. Preserved both existing disclaimers verbatim. Extended the complete config example with commented optional Docker/quoting examples without enabling new commands.
+- Updated the full code map and replaced current verification notes with checks actually performed for this release. Added `uploaded-release-manifest.json` containing the actual uploaded archive inventory, hashes, sizes, and ZIP mode fields; retained both older JSON manifests unchanged. Regenerated `manifest.sha256` including `.gitignore`, which the uploaded checksum file omitted.
+- Incremented `VERSION` exactly once from `0.0.2` to `0.0.3`. Packaged the complete source project without caches, dependencies, temporary files, or build output. See `VERIFICATION.md` for preservation totals and test limitations.
 
 ## 0.0.2 — 2026-09-25
 
