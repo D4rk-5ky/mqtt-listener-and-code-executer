@@ -41,20 +41,20 @@ This project targets Linux with Python 3 and `paho-mqtt`. Helpers require Bash a
 
 ## Install and choose an account
 
-Extract the complete project into a directory accessible to the account that will run it. These examples use `/opt/mqtt-listener`; adjust it consistently in your config and service.
+Extract the complete project into a directory accessible to the account that will run it. These examples use `/root/Source/MQTT-command-executioner`; adjust it consistently in your config and service.
 
 ```bash
-cd /opt/mqtt-listener
+cd /root/Source/MQTT-command-executioner
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 cp commands-example.txt commands.txt
 chmod 600 commands.txt
-chmod +x shutdown-delay.sh shutdown-cancel.sh reboot-delay.sh reboot-cancel.sh
+chmod +x mqtt-listener.py scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh
 ```
 
-`cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the four helpers executable; executable permissions may need restoring after ZIP extraction.
+`cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the listener and four helpers executable. The release ZIP records mode `0755` for these five scripts; this command restores it if your extraction tool drops Unix permissions.
 
-The chosen account needs access to the directory, scripts, and config. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
+The four helpers are in the project-root `scripts/` folder. The example configuration uses `/root/Source/MQTT-command-executioner/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
 
 ## Configuration: all available options
 
@@ -72,7 +72,7 @@ This is a custom line-based format, **not YAML**. Copy [commands-example.txt](co
 
 Blank lines and whole lines beginning with `#` after trimming are ignored. Inline comments are **not** supported. Keys, values, command names, and commands have surrounding whitespace stripped. Duplicate keys or command names use the last value. Unknown settings do not add capabilities. Do not quote values as if this were YAML: quote characters become part of the value.
 
-A line ending in `:` is interpreted as a section header, so an empty setting such as `password:` is not stored as an empty value. Omit unused credential lines entirely.
+Outside a command mapping, a line ending in `:` is interpreted as a section header, so an empty setting such as `password:` is not stored as an empty value. Omit unused credential lines entirely.
 
 For a first test, use a dedicated broker topic and only a harmless command:
 
@@ -110,21 +110,50 @@ In Home Assistant's automation visual editor:
 
 This uses Home Assistant's [MQTT topic/payload trigger](https://www.home-assistant.io/docs/automation/trigger/#mqtt-trigger). HA must be connected and listening when the message arrives. Because the message is not retained, an HA restart will not replay an old “online” event. This is a connection announcement, **not continuous availability monitoring**: there is no heartbeat, Last Will, `offline` payload, MQTT discovery, or automatic availability entity.
 
-The command example uses one literal tab before each mapping. Spaces still work because the existing parser strips surrounding whitespace; no parser change is needed.
+The command example uses one literal tab before each active mapping. Spaces and tabs are both accepted as indentation.
+
+## Commands containing spaces
+
+Under `commands:`, the entire left side of the first `=` is the MQTT payload to match; the entire right side is the shell command to launch. Spaces inside either side are preserved. For example:
+
+```text
+commands:
+    docker start open-webui = docker start open-webui
+```
+
+Publish exactly `docker start open-webui` on a configured command topic. Do not include the `=` or the right side in the MQTT message. Do not surround the payload in quote characters in an MQTT dashboard field. In a shell, quote the publisher argument so the shell passes it as one value:
+
+```bash
+mosquitto_pub -h localhost -p 1883 -t mqtt-listener/example-device/commands -m 'docker start open-webui'
+```
+
+Publisher flags: `-h` selects the broker, `-p` its port, `-t` the topic, and `-m` the complete payload. Adapt the broker/topic and authentication to your config. This example starts a real container when that mapping is enabled. Docker must be installed, the container must exist, and the listener account must have access to Docker. `docker start` starts an existing stopped container; `open-webui` is its name.
+
+You can instead choose a short payload alias, such as `start_webui = docker start open-webui`, and publish `start_webui`. Both forms use the same exact-match lookup. Matching is case-sensitive; internal double spaces differ from single spaces. Surrounding whitespace is trimmed. Unknown, partial, or appended payloads are ignored.
+
+Quote individual shell arguments or executable paths containing spaces on the right side, for example `run tool = "/opt/my tools/runner" --label="A B"`. Do not quote the whole right side as one executable name. Shell operators and later `=` characters are preserved. A command ending in `:` is also preserved as a mapping. The first `=` is always the delimiter, so the payload name cannot contain `=`. Only trusted configured shell text is executed; incoming text selects a mapping.
 
 ## CLI: all flags
 
 ```bash
 .venv/bin/python mqtt-listener.py --help
-.venv/bin/python mqtt-listener.py --config /opt/mqtt-listener/commands.txt
+.venv/bin/python mqtt-listener.py --config /root/Source/MQTT-command-executioner/commands.txt
 ```
 
 | Flag | Value / required | Purpose and example |
 | --- | --- | --- |
 | `-h`, `--help` | No value; optional | Print usage and exit without reading config or connecting. Example: `mqtt-listener.py -h`. Paho must still be installed because it is imported first. |
-| `-c`, `--config` | File path; required | Read this file. Example: `mqtt-listener.py -c /opt/mqtt-listener/commands.txt`. Relative paths use the current working directory. There is no default config file. |
+| `-c`, `--config` | File path; required | Read this file. Example: `mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt`. Relative paths use the current working directory. There is no default config file. |
 
-Prefix those script examples with the selected Python interpreter. These are the only application flags: there is no `--version` or `--dry-run`. The package version is in [VERSION](VERSION). Python's `-u`, used in the service, makes stdout/stderr unbuffered for prompt logs; it is an interpreter flag. Missing/unknown arguments produce argparse errors. Missing/unreadable config, an invalid port, or initial connection failure can stop the application. Ctrl+C stops a foreground listener but does not reliably cancel previously launched commands.
+For direct execution, activate the virtual environment so the existing `#!/usr/bin/env python3` header selects Python with Paho installed:
+
+```bash
+. .venv/bin/activate
+./mqtt-listener.py --help
+./mqtt-listener.py --config /root/Source/MQTT-command-executioner/commands.txt
+```
+
+The shell's `. .venv/bin/activate` loads the environment into the current shell; `./` selects the script in the current directory. If execution is denied after extraction, restore permissions with the installation command above. A filesystem mounted with execution disabled also prevents direct execution; use the explicit interpreter commands above or an executable filesystem. Explicit `.venv/bin/python` invocation does not require activation. These are the only application flags: there is no `--version` or `--dry-run`. The package version is in [VERSION](VERSION). Python's `-u`, used in the service, makes stdout/stderr unbuffered for prompt logs; it is an interpreter flag. Missing/unknown arguments produce argparse errors. Missing/unreadable config, an invalid port, or initial connection failure can stop the application. Ctrl+C stops a foreground listener but does not reliably cancel previously launched commands.
 
 ## Test a harmless message
 
@@ -140,24 +169,24 @@ Here `-h` means broker host, `-p` broker port, `-t` publish topic, and `-m` text
 
 | Example payload | Helper | Behavior |
 | --- | --- | --- |
-| `shutdown_delay` | `shutdown-delay.sh` | Starts a background subshell: wait 60 seconds, then `shutdown -P now`; records its PID in `/tmp/shutdown.pid`. |
-| `shutdown_cancel` | `shutdown-cancel.sh` | If the PID file exists, attempts to kill that PID; removes the file only if killing succeeds. |
-| `reboot_delay` | `reboot-delay.sh` | Starts a background subshell: wait 60 seconds, then `reboot`; records its PID in `/tmp/reboot.pid`. |
-| `reboot_cancel` | `reboot-cancel.sh` | Attempts the same recorded-PID cancellation for reboot. |
+| `shutdown_delay` | `scripts/shutdown-delay.sh` | Starts a background subshell: wait 60 seconds, then `shutdown -P now`; records its PID in `/tmp/shutdown.pid`. |
+| `shutdown_cancel` | `scripts/shutdown-cancel.sh` | If the PID file exists, attempts to kill that PID; removes the file only if killing succeeds. |
+| `reboot_delay` | `scripts/reboot-delay.sh` | Starts a background subshell: wait 60 seconds, then `reboot`; records its PID in `/tmp/reboot.pid`. |
+| `reboot_cancel` | `scripts/reboot-cancel.sh` | Attempts the same recorded-PID cancellation for reboot. |
 
 Repeated starts overwrite the PID file and can leave earlier timers running. Cancellation attempts only the recorded PID; it is not verified process-tree cancellation or a guarantee against shutdown/reboot. PID files can be stale and PIDs can be reused; these scripts do not validate ownership. Test on a disposable Linux host before relying on cancellation. The code map explains every shell operation.
 
 ## systemd service
 
-The supplied [mqtt-listener.service](mqtt-listener.service) is preserved from the original project. Before installing it, edit these fields to match your deployment:
+The supplied [mqtt-listener.service](mqtt-listener.service) uses `/root/Source/MQTT-command-executioner/` as its working directory, with `mqtt-listener.py` and `commands.txt` in that directory. Before installing it, replace the placeholder account and select the Python interpreter containing Paho. For the virtual environment installed above, use:
 
 ```ini
 User=your_username
-WorkingDirectory=/opt/mqtt-listener/
-ExecStart=/opt/mqtt-listener/.venv/bin/python -u /opt/mqtt-listener/mqtt-listener.py -c /opt/mqtt-listener/commands.txt
+WorkingDirectory=/root/Source/MQTT-command-executioner/
+ExecStart=/root/Source/MQTT-command-executioner/.venv/bin/python -u /root/Source/MQTT-command-executioner/mqtt-listener.py -c /root/Source/MQTT-command-executioner/commands.txt
 ```
 
-Replace `your_username` with your chosen account. The original unit uses `/root/scripts/mqtt-listener/` and `/usr/bin/python3`; those paths and its placeholder account require review. When using a virtual environment, select its Python interpreter.
+Replace `your_username` with your chosen account. The packaged unit uses `/usr/bin/python3` and the requested project paths; its placeholder account must be changed to an account that can access this location. When using a virtual environment, select its Python interpreter.
 
 The unit uses `Type=simple`, orders startup after `network.target`, sets `TimeoutStartSec=180`, runs `/bin/sleep 60` before every start, and uses `Restart=always`. `network.target` does not guarantee broker reachability. `WantedBy=multi-user.target` enables normal boot startup. See the code map for all directives.
 
@@ -181,7 +210,7 @@ After config changes, use `sudo systemctl restart mqtt-listener.service` (includ
 - Every match starts a new shell process; jobs can overlap without locking, limits, or deduplication. Configured shell text can perform any operation the account is allowed to perform.
 - Invalid UTF-8 can raise from the callback. The application does not comprehensively handle connection/subscription errors.
 - Config reload requires restart. Logs can include payloads and configured command text; avoid embedding secrets and restrict log access.
-- The original `.gitigore` filename is misspelled and does not work as a Git ignore file. Before committing a local deployment, exclude `commands.txt`, virtual environments, and secrets using your repository configuration.
+- `.gitignore` excludes `commands*`. Its supplied `! commands-example.txt` pattern has a space and does not correctly re-include the example; use `!commands-example.txt` in your own repository if needed. The preserved `.gitigore` is misspelled and ignored by Git. Review ignore rules for virtual environments and secrets before committing a deployment.
 
 ## Build a standalone executable with PyInstaller
 
@@ -194,7 +223,7 @@ python3 -m venv .build-venv
 .build-venv/bin/python -m pip install -r requirements-build.txt
 .build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec
 ./dist/mqtt-listener --help
-./dist/mqtt-listener --config /opt/mqtt-listener/commands.txt
+./dist/mqtt-listener --config /root/Source/MQTT-command-executioner/commands.txt
 ```
 
 On Windows PowerShell, use the same spec:
@@ -213,10 +242,10 @@ Keep `commands.txt` and all scripts referenced by its command mappings on the ta
 To use a Linux build with the supplied service, keep its other settings and set its adapted `ExecStart` to:
 
 ```ini
-ExecStart=/opt/mqtt-listener/mqtt-listener -c /opt/mqtt-listener/commands.txt
+ExecStart=/root/Source/MQTT-command-executioner/mqtt-listener -c /root/Source/MQTT-command-executioner/commands.txt
 ```
 
-Install your built executable at that path first. The packaged original service stays unchanged and still launches the Python source. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
+Install your built executable at that path first. The packaged service launches the Python source from `/root/Source/MQTT-command-executioner`; change `ExecStart` as shown only when using a standalone build. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
 
 ## Offline checks
 
