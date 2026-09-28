@@ -1,41 +1,54 @@
-# Release verification — 0.0.6
+# Release verification — 0.0.8
 
-## Changes and preservation
+## Scope and preservation
 
-This release increments `0.0.5` to `0.0.6`. It retains the four helpers under `scripts/` and their configured `/root/Source/mqtt-listener-and-code-executer/scripts/` paths. The service now uses `/root/Source/mqtt-listener-and-code-executer/` as `WorkingDirectory`, `/root/Source/mqtt-listener-and-code-executer/mqtt-listener.py` as its script, and `/root/Source/mqtt-listener-and-code-executer/commands.txt` as its config.
+This release increments 0.0.7 once to 0.0.8 and adds optional Home Assistant MQTT device/button discovery using the same per-button discovery and common device metadata pattern as Homelab-Panel 0.0.14. HA settings follow the MQTT settings in `commands-example.txt` and default to disabled. Names and press payloads use the exact trimmed command names before `=`.
 
-The final archive contains 23 files. All version 0.0.5 paths remain. Fourteen files are byte-identical to 0.0.5; nine have intentional changes: README, VERSION, VERSIONING.md, commented_code_map.md, mqtt-listener.service, commands-example.txt, tests/test_listener.py, VERIFICATION.md, and manifest.sha256. The four helpers retain their content and executable permissions.
+The ZIP contains 22 files. All 20 files from 0.0.7 remain. Eleven are byte-identical; nine are intentionally updated: README, VERIFICATION, VERSION, VERSIONING, commands-example, commented_code_map, manifest.sha256, mqtt-listener.py, and tests/test_listener.py. Added files are `tests/test_home_assistant.py` and `previous-release-manifest.json`, which records the exact 0.0.7 archive inventory and hashes.
 
-The uploaded archive's 22 files are also all accounted for, with those same four relocations. The extra file is the previously added uploaded-release-manifest.json. Historical manifests retain their original paths and hashes; for current preservation checks, map their four root-level helper paths to `scripts/<filename>`.
+All 19 files actually present in the original supplied 0.0.6 archive also remain. Nine are byte-identical to that upload; ten have documented changes across 0.0.7 and 0.0.8. The original-upload manifest remains byte-identical to 0.0.7 and records the input archive's four missing historical references. No missing historical contents have been invented.
+
+The original config parser, command dispatch statements, command subscription loop, and non-retained online announcement are preserved. Online-topic validation now reuses the shared publish-topic validator with equivalent rules. The service, four helpers, dependency pins, build recipe, ignore file, and online tests are byte-identical to 0.0.7. Every original broker option and command mapping remains in the expanded config example.
 
 ## Passed checks
 
-- All 34 offline tests pass from the final extracted ZIP, including complete multiword command matching, exact-match rejection, parser edge cases, and online-topic isolation.
-- The existing example test verifies all seven configuration settings/sections, all four original power payloads, the exact `/root/Source/mqtt-listener-and-code-executer/scripts` prefix, and the packaged helper files under `scripts/`.
-- All Python files and the PyInstaller spec compile in memory. All four relocated helpers pass Bash syntax checks without executing any power operations.
-- Direct execution of the extracted listener passes `--help` and `-h` with exit 0. Missing config, missing config value, and an unsupported argument exit 2. These CLI checks use real installed Paho.
-- Listener source and all helper contents match version 0.0.5 byte-for-byte. The status safeguards, parser fix, exact command lookup, shell execution, and startup behavior are unchanged.
-- The exact service working directory and script/config paths match the requested destination. All other service directives match version 0.0.5.
-- README local links resolve and both disclaimers are unchanged. Documentation and permission commands use the new helper locations.
-- ZIP contents match staged files and independently extracted files. Unix mode `0755` is retained for the listener and four helpers; other files use `0644`.
-- The regenerated manifest verifies all 22 other files, including the helpers at their new locations. A checksum for the complete ZIP accompanies the archive.
-- No caches, bytecode, build output, dependencies, temporary files, or deployment credentials are packaged.
+- The 35 baseline offline tests passed before editing. All 52 release tests pass from the independently extracted ZIP: 17 new HA tests plus the existing listener and online tests.
+- HA tests cover exact names/press payloads, shared device metadata, stable/distinct IDs, disabled/legacy configs, topic validation and collision rejection, wildcard routing through Paho's matcher, Last Will wiring, reconnect callbacks, HA birth replay, metadata isolation before decoding, empty mappings, publication/subscription errors, and reuse of the existing command handler. MQTT clients and processes are mocked in these tests.
+- A separate live test used a temporary Mosquitto 2.1.2 broker listening only on 127.0.0.1 with real Paho 2.1.0. It verified two discovered buttons on one device, retained discovery and availability received by a later subscriber, exact plain-name command dispatch, HA birth rediscovery, metadata isolation with a wildcard-only command subscription, reconnect after broker restart, and retained offline Last Will after listener termination.
+- The live test used its own scratch configuration, ephemeral port, broker, and observers. Only a harmless `printf` command writing a scratch marker was executed; the original power mappings were never loaded or run. The temporary broker and clients were stopped afterward. HA birth and button press messages were simulated using real MQTT clients, not an actual Home Assistant server.
+- All Python files and the PyInstaller spec compile in memory. All four helpers pass Bash syntax checks without execution.
+- Real-Paho `--help`, `-h`, and `--version` checks exit 0, including direct executable launch and invocation outside the project directory. The version output is `mqtt-listener.py 0.0.8`. Missing config, missing config value, and unknown flags exit 2.
+- The unchanged build spec includes `VERSION` as a bundled data resource when evaluated with inert builder stand-ins. All added application imports are from the Python standard library; runtime requirements are unchanged.
+- The example includes all seven original settings/sections and all nine HA settings. The test verifies their placement, disabled default, original helper paths and original payloads. README local file links resolve; both disclaimers retain their wording; the code map names every application/test function and explains the commands and settings.
+- Final ZIP contents, bytes and permissions match staging and independent extraction. All original paths are accounted for against both the actual uploaded archive and 0.0.7. Unix mode 0755 is retained for the listener and four helpers; other files are 0644.
+- The final ZIP passes CRC verification. The release manifest checks all 21 other files; a separate checksum covers the ZIP. No bytecode, `__pycache__`, build/dependency cache, scratch tests/logs, temporary files, or deployment credentials are packaged.
 
-## Environment and limitations
+## Limitations and deployment checks
 
-Checks used macOS 15.8, Python 3.9.6, and Paho MQTT 2.1.0. Actual MQTT/Home Assistant delivery, Docker operations, Linux systemd startup, shutdown/reboot, cancellation, and access to the requested path on your host remain untested. No PyInstaller build was repeated. No power helper was executed.
+Checks ran on macOS with Python 3.9.6, Paho MQTT 2.1.0, and Mosquitto 2.1.2. The existing Paho callback API emits a deprecation warning; callback compatibility is deliberately preserved.
 
-The supplied service paths are updated. Replace its placeholder account and, if using a virtual environment, select its Python interpreter using README before installation. The listener account needs access to `/root/Source/mqtt-listener-and-code-executer` when using these paths.
+No actual Home Assistant UI or entity registry was available, so its rendered device page, user-customized names, dashboard cards and retained-entity cleanup were not directly tested. Discovery schema and lifecycle were checked against official HA documentation and the local Homelab-Panel implementation. The local broker test confirms transport behavior but does not verify your broker credentials/ACLs, network or HA configuration.
 
-## Reproduce checks
+Linux systemd startup, Docker actions, shutdown/reboot/cancellation, and a PyInstaller executable build remain untested. No service was installed. PyInstaller is not installed in this checking environment; only its recipe wiring was checked.
 
-From the extracted project root:
+Renamed/removed commands can leave old retained discovery definitions. README explains explicit cleanup. Availability reports the MQTT connection, not successful command completion; repeated command messages retain the listener's original behavior.
+
+## Reproduce offline checks
+
+From the extracted project directory:
 
 ```bash
 python3 -B -m unittest discover -s tests -v
 sha256sum -c manifest.sha256
 ```
 
-`-B` suppresses bytecode; `-m unittest` runs the test runner; `discover -s tests` selects the test folder; `-v` prints individual results. `sha256sum -c` verifies listed file hashes. On macOS use `shasum -a 256 -c manifest.sha256` instead. Checksums compare content with the supplied list, not publisher identity.
+`-B` suppresses bytecode; `-m unittest` invokes the runner; `discover -s tests` selects tests; `-v` prints individual results. `sha256sum -c` verifies listed hashes. On macOS use `shasum -a 256 -c manifest.sha256`. Checksums validate content against the supplied list, not publisher identity.
 
-After installing the README's runtime dependencies and activating the environment, `./mqtt-listener.py --help` checks direct execution. The README includes the permission-restoration command if your extraction tool drops Unix modes.
+After installing runtime dependencies:
+
+```bash
+python3 -B mqtt-listener.py --help
+python3 -B mqtt-listener.py --version
+```
+
+`--help` explains all listener flags; `--version` prints its name and release. Both exit without command config or a broker connection. Paho and the adjacent VERSION file are required. README gives a harmless HA test configuration and installation steps.
