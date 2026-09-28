@@ -19,6 +19,9 @@ def fake_paho():
     client = types.ModuleType('paho.mqtt.client')
     client.Client = MagicMock(name='Client')
     client.MQTT_ERR_SUCCESS = 0
+    # Conservative fake for exact subscriptions. Wildcard wiring is mocked in
+    # HA tests; release broker checks exercise Paho's real MQTT topic matcher.
+    client.topic_matches_sub = MagicMock(side_effect=lambda topic_filter, topic: topic_filter == topic)
     paho.mqtt = mqtt
     mqtt.client = client
     return {'paho': paho, 'paho.mqtt': mqtt, 'paho.mqtt.client': client}, client
@@ -121,7 +124,14 @@ class ListenerTests(unittest.TestCase):
 
     def test_example_has_every_setting_and_original_payload(self):
         config = self.listener['read_config'](str(ROOT / 'commands-example.txt'))
-        self.assertEqual(set(config), {'hostname', 'port', 'username', 'password', 'topics', 'online_topic', 'commands'})
+        self.assertEqual(set(config), {'hostname', 'port', 'username', 'password', 'topics', 'online_topic',
+                                     'ha_enabled', 'ha_device_id', 'ha_device_name', 'ha_discovery_prefix',
+                                     'ha_command_topic', 'ha_availability_topic', 'ha_status_topic',
+                                     'ha_status_online_payload', 'ha_discovery_retain', 'commands'})
+        self.assertEqual(config['ha_enabled'], 'false')
+        example = (ROOT / 'commands-example.txt').read_text()
+        self.assertLess(example.index('online_topic:'), example.index('ha_enabled:'))
+        self.assertLess(example.index('ha_discovery_retain:'), example.index('commands:\n'))
         self.assertEqual(set(config['commands']),
                          {'shutdown_delay', 'shutdown_cancel', 'reboot_delay', 'reboot_cancel'})
         for command in config['commands'].values():
@@ -195,10 +205,24 @@ class ListenerTests(unittest.TestCase):
             self.assertIn('-c', output.getvalue())
             self.assertIn('--config CONFIG', output.getvalue())
             self.assertIn('-h, --help', output.getvalue())
+            self.assertIn('--version', output.getvalue())
             mqtt.Client.assert_not_called()
 
+    def test_version_exits_zero_without_config_or_client(self):
+        modules, mqtt = fake_paho()
+        output = io.StringIO()
+        with patch.dict(sys.modules, modules), \
+                patch.object(sys, 'argv', [str(SCRIPT), '--version']), \
+                patch('builtins.open', side_effect=AssertionError('config must not be read')), \
+                contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as caught:
+            runpy.run_path(str(SCRIPT), run_name='__main__')
+        self.assertEqual(caught.exception.code, 0)
+        self.assertEqual(output.getvalue().strip(),
+                         'mqtt-listener.py ' + (ROOT / 'VERSION').read_text().strip())
+        mqtt.Client.assert_not_called()
+
     def test_missing_config_unknown_flag_and_missing_value_exit_two(self):
-        for argv in ([], ['-c'], ['-c', 'x', '--dry-run'], ['--version']):
+        for argv in ([], ['-c'], ['-c', 'x', '--dry-run']):
             with self.subTest(argv=argv), self.assertRaises(SystemExit) as caught:
                 self.run_cli(argv)
             self.assertEqual(caught.exception.code, 2)

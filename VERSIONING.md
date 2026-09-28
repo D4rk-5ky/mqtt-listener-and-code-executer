@@ -1,6 +1,27 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the uploaded baseline for the current release is `0.0.2`, and this release is `0.0.6`. `VERSION` records the package version; the application has no version CLI flag.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds on `0.0.7` and is `0.0.8`. The original supplied archive is `0.0.6`. `VERSION` is the single version source and is exposed by `--version`. Keep this existing uppercase filename as the project’s canonical versioning log.
+
+## 0.0.8 — 2026-09-28
+
+- Added optional Home Assistant MQTT button discovery using Homelab-Panel 0.0.14's per-button discovery, common device metadata, retained definitions, availability Last Will, and HA birth rediscovery pattern. The integration uses the existing MQTT client and broker credentials.
+- Added nine HA settings after the MQTT settings in `commands-example.txt`: `ha_enabled` (false by default), `ha_device_id`, `ha_device_name`, `ha_discovery_prefix`, `ha_command_topic`, `ha_availability_topic`, `ha_status_topic`, `ha_status_online_payload`, and `ha_discovery_retain`. Every usable command mapping becomes a button named with the exact trimmed text before `=`. HA presses send that exact name to the existing command dispatcher, never the shell text.
+- Added `valid_publish_topic`, `get_home_assistant_config`, `publish_home_assistant_message`, and `publish_home_assistant_discovery`. The original online-topic check reuses the shared topic validator with equivalent rules. Paho's existing topic matcher validates command-topic subscription coverage without adding another command subscription.
+- Extended successful-connect callbacks to subscribe to HA birth messages, publish discovery, and mark availability online. Added a separate retained offline Last Will before connection. Discovery publication/subscription errors are logged without stopping command listening.
+- Extended incoming-message guards to reserve HA birth, availability and this device's discovery namespace when enabled, including wildcard subscriptions. Invalid HA settings disable only HA. Existing whole-payload matching, shell execution, command retention/repetition handling, original non-retained online announcement, service and power helpers remain intact.
+- Stable entity IDs combine the configured listener ID with SHA-256 of the command name; button presses are non-retained at QoS 0. Discovery/availability use QoS 1. Empty names or empty shell commands are not advertised. Removed/renamed retained definitions require manual cleanup, documented in README as with Homelab-Panel's approach.
+- Added 17 offline HA tests and extended the original config-example test to cover all options, order and disabled default. Extended the inert MQTT test double with conservative topic matching. All 52 offline tests pass. A temporary localhost Mosquitto/Paho test verifies discovery, retained definitions, HA birth replay, wildcard-only command routing, harmless command dispatch, reconnect and Last Will.
+- Updated current README, full code map and verification report. Preserved disclaimers and historical log entries. Added a precise 0.0.7 baseline manifest while retaining the original-upload manifest. Incremented version once to 0.0.8 and regenerated release checksums. No new runtime dependency or CLI flag was needed; `--help` and `--version` remain supported.
+
+## 0.0.7 — 2026-09-28
+
+- Inspected all 19 files actually supplied in the 0.0.6 ZIP and ran its 34 offline tests before editing.
+- Added `--version`, which prints the program name and the release number from the adjacent `VERSION` file and exits without reading command config or creating an MQTT client. Expanded `--config` help and the help epilog to explain paths, shell execution, and retained/repeated delivery. Paho remains required for all CLI invocations.
+- Added `VERSION` to the existing PyInstaller spec's data list for standalone version reporting. No duplicate runtime version constant or new command parser was introduced.
+- Added one CLI regression test for version output and side-effect avoidance; extended help coverage and removed `--version` from the unsupported-argument cases. All 35 offline tests pass.
+- Updated current README and full code map for flags, version resource, and actual supplied files. Preserved both disclaimers with the user's wording. Verified the unchanged config example covers all seven settings/sections and four original helper mappings.
+- Added `uploaded-release-manifest.json` recording this exact input archive, all original files and hashes, its checksum text, and the four referenced but absent paths. The upload contains no `.gitigore`, `original-manifest.json`, `previous-release-manifest.json`, or `uploaded-release-manifest.json`; historical entries below describe earlier releases and do not prove those files were supplied. No missing historical contents were invented.
+- Incremented `VERSION` from `0.0.6` to `0.0.7`; refreshed verification notes and checksums. Preserved every supplied file path, all four runtime functions, the service, shell helpers, dependency pins, config example, and original script permissions. Packaged all source files without caches or temporary files; see `VERIFICATION.md` for checks and limits.
 
 ## 0.0.6 — 2026-09-26
 
@@ -53,4 +74,4 @@ Every created release increments by exactly `0.0.1`. The patch component ranges 
 - Added `VERSION`, offline tests in `tests/test_listener.py`, `VERIFICATION.md`, and `manifest.sha256`. The release SHA-256 manifest excludes only itself.
 - Verified source compilation, offline config/callback/CLI behavior, preservation, and the extracted ZIP against the staged release and original manifest. Check details and unavailable live checks are in `VERIFICATION.md`.
 
-The original `.gitigore` filename is intentionally preserved. It does not protect deployment secrets from Git; this limitation is documented. Cancellation behavior, shell execution, retained-message handling, the service startup delay, and payload names were not changed.
+Historical preservation statements above refer to those earlier releases. The supplied 0.0.6 archive contains `.gitignore` only. Cancellation behavior, shell execution, retained-message handling, the service startup delay, and payload names remain unchanged in 0.0.7.

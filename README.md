@@ -13,7 +13,7 @@ The author takes **no responsibility or liability** for any data loss, service d
 Before running it in production, you **must**:
 
 - Read the entire source code
-- Understand exactly what it does (and what it does _not_ do)
+- Understand exactly what it does (and what it does *not* do)
 - Review and adapt it to your own environment
 - Test it carefully in a non‑production setup
 
@@ -35,7 +35,7 @@ You are responsible for reviewing the code, testing it in a safe environment, ma
 
 The listener reads a text configuration file, connects to an MQTT broker, and subscribes to the configured topics. Incoming payloads are decoded as UTF-8 and stripped of leading/trailing whitespace. The resulting text is matched, case-sensitively, against the configured command names. A matching nonempty command starts in the background through `subprocess.Popen(command, shell=True)`.
 
-The MQTT payload selects a configured command; it is not appended to that command. All command topics share the same command map. When enabled, the dedicated `online_topic` is reserved for status and ignored by command handling. Unknown payloads are logged and ignored. “Executed command in background” means process creation succeeded, not that the command completed successfully. The listener does not collect exit codes, publish command results, or wait for jobs to finish. An optional plain `online` announcement reports a successful MQTT connection.
+The MQTT payload selects a configured command; it is not appended to that command. All command topics share the same command map. When enabled, the dedicated `online_topic` is reserved for status and ignored by command handling. Unknown payloads are logged and ignored. “Executed command in background” means process creation succeeded, not that the command completed successfully. The listener does not collect exit codes, publish command results, or wait for jobs to finish. An optional plain `online` announcement reports a successful MQTT connection. Optional Home Assistant MQTT discovery creates one device with a button for each nonempty command mapping; button names use the exact trimmed text before `=`.
 
 This project targets Linux with Python 3 and `paho-mqtt`. Helpers require Bash and Linux shutdown/reboot utilities; the service requires systemd. See [the code map](commented_code_map.md) for every function, shell command, and service directive, and [verification notes](VERIFICATION.md) for testing limits.
 
@@ -68,6 +68,15 @@ This is a custom line-based format, **not YAML**. Copy [commands-example.txt](co
 | `password` | None | Plain-text broker password. If either credential is absent/empty, neither is passed to Paho. |
 | `topics` | Empty string | Comma-separated topic filters, trimmed of surrounding spaces. Supply at least one nonempty filter; empty entries are not validated/removed. |
 | `online_topic` | Disabled | Optional dedicated publish topic for the plain `online` announcement. Keep it separate from command topics; use a unique topic per listener. |
+| `ha_enabled` | `false` | Enable HA MQTT discovery with `true`. Only `true`/`false` are accepted (case-insensitive). Omission leaves the existing listener behavior unchanged. |
+| `ha_device_id` | None | Required when enabled. Unique, stable ID per listener: 1–128 ASCII letters, digits, `_` or `-`. Keep it unchanged when renaming the device. |
+| `ha_device_name` | `MQTT Command Listener` | Device name shown in HA. Spaces and Unicode are allowed; do not add quotes. |
+| `ha_discovery_prefix` | `homeassistant` | Match the discovery prefix configured in HA. Trailing `/` is removed. |
+| `ha_command_topic` | First entry in `topics` | Concrete publish topic used by every button. Must be covered by an existing `topics` subscription, including wildcard filters. No new command subscription is added. Set this explicitly if the first filter is a wildcard. |
+| `ha_availability_topic` | `mqtt-listener/<ha_device_id>/availability` | Unique retained `online`/`offline` topic for this listener. Must differ from command topics, `online_topic`, and HA's birth topic. |
+| `ha_status_topic` | `homeassistant/status` | HA birth/status topic. The listener subscribes at QoS 1 to restore discovery when HA starts. |
+| `ha_status_online_payload` | `online` | Exact, nonempty HA birth payload that triggers rediscovery. Other payloads on the birth topic are ignored. |
+| `ha_discovery_retain` | `true` | Retain discovery definitions at the broker. With `false`, reconnect and HA birth messages still resend them. Button commands always use `retain=false`. |
 | `commands:` | Empty mapping | Begins `payload = shell command` mappings. The first `=` separates the fields; later `=` characters remain in the command. |
 
 Blank lines and whole lines beginning with `#` after trimming are ignored. Inline comments are **not** supported. Keys, values, command names, and commands have surrounding whitespace stripped. Duplicate keys or command names use the last value. Unknown settings do not add capabilities. Do not quote values as if this were YAML: quote characters become part of the value.
@@ -108,9 +117,60 @@ In Home Assistant's automation visual editor:
 3. Set **Payload** to `online`, with no quotes, JSON, or value template.
 4. Add the action you want, save/enable the automation, and then restart the listener to test it. Check the automation's traces.
 
-This uses Home Assistant's [MQTT topic/payload trigger](https://www.home-assistant.io/docs/automation/trigger/#mqtt-trigger). HA must be connected and listening when the message arrives. Because the message is not retained, an HA restart will not replay an old “online” event. This is a connection announcement, **not continuous availability monitoring**: there is no heartbeat, Last Will, `offline` payload, MQTT discovery, or automatic availability entity.
+This uses Home Assistant's [MQTT topic/payload trigger](https://www.home-assistant.io/docs/automation/trigger/#mqtt-trigger). HA must be connected and listening when the message arrives. Because the message is not retained, an HA restart will not replay an old “online” event. This connection announcement alone does not provide continuous availability monitoring. The optional button integration below uses a separate retained availability topic and Last Will. There is no heartbeat or command-result sensor.
 
 The command example uses one literal tab before each active mapping. Spaces and tabs are both accepted as indentation.
+
+## Home Assistant device and buttons (optional)
+
+This follows Homelab-Panel's MQTT discovery approach: button entities share a device identifier and device name, their discovery definitions can be retained, and discovery is repeated on MQTT reconnect and Home Assistant birth messages. It uses HA's existing MQTT integration and the same broker and credentials as the listener. No custom HA integration files or manual entity YAML are needed. See the official [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) and [MQTT button](https://www.home-assistant.io/integrations/button.mqtt/) documentation.
+
+1. Configure Home Assistant's MQTT integration to use the same broker, with discovery enabled and a matching discovery prefix.
+2. Copy `commands-example.txt` to your private config. The optional HA settings are placed **after MQTT settings and before `commands:`**.
+3. Set `ha_enabled: true`, choose a unique stable `ha_device_id`, and enter your desired `ha_device_name`. Adapt the command and availability topics to your installation.
+4. Restart the listener. In HA, open **Settings → Devices & services → MQTT** and open the device with your configured name. Its buttons appear as device controls; you can add them to a dashboard. HA may prefix entity display names with the device name outside the device page, and existing user renames can override discovered names.
+
+Minimal harmless test configuration:
+
+```text
+hostname: localhost
+port: 1883
+topics: mqtt-listener/test-device/commands
+
+ha_enabled: true
+ha_device_id: test-device
+ha_device_name: My Test Server
+
+commands:
+    Ping server = /usr/bin/printf 'MQTT listener test\n'
+```
+
+This creates device **My Test Server** with button **Ping server**. Pressing it sends plain `Ping server` to the existing command topic; the original exact-match command handler launches the configured right-hand side. The shell command text is never included in discovery. Authentication and broker access requirements are the same as for the existing listener. Every nonempty mapping creates a button, including power commands if you keep them enabled. Empty names or empty shell commands create no button.
+
+`docker start open-webui = docker start open-webui` produces a button named `docker start open-webui`. Case, punctuation, Unicode, and internal spaces remain part of its name and payload. Button IDs use the device ID and SHA-256 of the complete trimmed command name, so reordering commands, changing a shell command, or changing only the device name does not create new entities. Changing a command name or device ID changes its entity identity.
+
+### Discovery, availability, and topic rules
+
+- Discovery topic: `<ha_discovery_prefix>/button/mqtt_listener_<ha_device_id>/<command-name-sha256>/config`. All buttons share the device identifier `mqtt_listener_<ha_device_id>`. This namespace is separate from Homelab-Panel devices.
+- Discovery and availability use QoS 1. HA button presses use QoS 0 and are never retained, matching the listener's existing command delivery expectations. The listener's handling of commands sent by other publishers is unchanged.
+- HA birth messages resend discovery and retained `online`. A retained `offline` Last Will is registered before connecting so broker-detected disconnection makes the buttons unavailable. Availability describes the MQTT connection, not command completion or host health; detection can be delayed by the network/keepalive.
+- The original `online_topic` still sends its non-retained connection announcement independently. Give it a different topic from HA availability and HA birth/status.
+- A concrete `ha_command_topic` must match an existing command subscription. For example, `topics: servers/#` can be used with `ha_command_topic: servers/test/commands`. Paho's existing topic matcher validates coverage. Avoid overlapping subscriptions, which some brokers can deliver more than once.
+- Birth/status, availability, and this device's discovery namespace are reserved before command decoding when HA discovery is enabled. Their messages cannot trigger configured commands even through a broad wildcard subscription. Other command topics keep their existing behavior.
+- Invalid HA options or conflicting topics log a reason and disable only the HA feature; existing command listening continues. Use plain unquoted values and whole-line comments. Like all other config options, an empty `key:` is interpreted as a section header; omit optional settings to use defaults.
+- The broker account needs permission to publish discovery and availability, subscribe to the HA birth topic, and keep its existing command subscriptions. HA needs permission to read discovery/availability and publish to the chosen command topic.
+
+### Changing or removing buttons
+
+Restart the listener after editing config. Existing discovery topics are updated for unchanged command names. Like Homelab-Panel, this listener does not keep a historical list for automatic deletion of removed or renamed buttons. Retained definitions can leave old entities visible, and setting `ha_enabled: false` stops discovery without deleting them.
+
+Remove an obsolete entity by publishing an **empty retained payload to that exact old discovery config topic**, then remove any remaining entity entry in HA if needed. Do this for old topics before changing device IDs or discovery prefixes. Never clear command topics as part of this cleanup. With a local test broker, for example:
+
+```bash
+mosquitto_pub -h localhost -p 1883 -t 'homeassistant/button/mqtt_listener_YOUR_DEVICE_ID/OLD_BUTTON_HASH/config' -r -n
+```
+
+Replace the placeholders with the old ID and the SHA-256 hex digest of the old trimmed button name in UTF-8, or copy the exact old config topic from your MQTT client. `-h`/`-p` select the broker, `-t` selects only that discovery topic, `-r` marks the empty update retained, and `-n` sends an empty payload. Adapt broker credentials in your MQTT client. Changing a label alone does not remove a previously retained definition.
 
 ## Commands containing spaces
 
@@ -137,13 +197,15 @@ Quote individual shell arguments or executable paths containing spaces on the ri
 
 ```bash
 .venv/bin/python mqtt-listener.py --help
+.venv/bin/python mqtt-listener.py --version
 .venv/bin/python mqtt-listener.py --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
 | Flag | Value / required | Purpose and example |
 | --- | --- | --- |
 | `-h`, `--help` | No value; optional | Print usage and exit without reading config or connecting. Example: `mqtt-listener.py -h`. Paho must still be installed because it is imported first. |
-| `-c`, `--config` | File path; required | Read this file. Example: `mqtt-listener.py -c /root/Source/mqtt-listener-and-code-executer/commands.txt`. Relative paths use the current working directory. There is no default config file. |
+| `--version` | No value; optional | Print the application name and version from `VERSION`, then exit without reading config or connecting. Paho must be installed. |
+| `-c`, `--config` | File path; required to listen | Read this file. Example: `mqtt-listener.py -c /root/Source/mqtt-listener-and-code-executer/commands.txt`. Relative paths use the current working directory. There is no default config file. |
 
 For direct execution, activate the virtual environment so the existing `#!/usr/bin/env python3` header selects Python with Paho installed:
 
@@ -153,7 +215,7 @@ For direct execution, activate the virtual environment so the existing `#!/usr/b
 ./mqtt-listener.py --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-The shell's `. .venv/bin/activate` loads the environment into the current shell; `./` selects the script in the current directory. If execution is denied after extraction, restore permissions with the installation command above. A filesystem mounted with execution disabled also prevents direct execution; use the explicit interpreter commands above or an executable filesystem. Explicit `.venv/bin/python` invocation does not require activation. These are the only application flags: there is no `--version` or `--dry-run`. The package version is in [VERSION](VERSION). Python's `-u`, used in the service, makes stdout/stderr unbuffered for prompt logs; it is an interpreter flag. Missing/unknown arguments produce argparse errors. Missing/unreadable config, an invalid port, or initial connection failure can stop the application. Ctrl+C stops a foreground listener but does not reliably cancel previously launched commands.
+The shell's `. .venv/bin/activate` loads the environment into the current shell; `./` selects the script in the current directory. If execution is denied after extraction, restore permissions with the installation command above. A filesystem mounted with execution disabled also prevents direct execution; use the explicit interpreter commands above or an executable filesystem. Explicit `.venv/bin/python` invocation does not require activation. These are the only application flags. `--help` and `--version` do not require `--config`; there is no `--dry-run`. Keep [VERSION](VERSION) beside the source script: it is the single source of the application version and is required at startup. It is included inside standalone builds. Python's `-u`, used in the service, makes stdout/stderr unbuffered for prompt logs; it is an interpreter flag. Missing/unknown arguments produce argparse errors. Missing/unreadable config, an invalid port, or initial connection failure can stop the application. Ctrl+C stops a foreground listener but does not reliably cancel previously launched commands.
 
 ## Test a harmless message
 
@@ -210,7 +272,7 @@ After config changes, use `sudo systemctl restart mqtt-listener.service` (includ
 - Every match starts a new shell process; jobs can overlap without locking, limits, or deduplication. Configured shell text can perform any operation the account is allowed to perform.
 - Invalid UTF-8 can raise from the callback. The application does not comprehensively handle connection/subscription errors.
 - Config reload requires restart. Logs can include payloads and configured command text; avoid embedding secrets and restrict log access.
-- `.gitignore` excludes `commands*`. Its supplied `! commands-example.txt` pattern has a space and does not correctly re-include the example; use `!commands-example.txt` in your own repository if needed. The preserved `.gitigore` is misspelled and ignored by Git. Review ignore rules for virtual environments and secrets before committing a deployment.
+- `.gitignore` excludes `commands*`. Its supplied `! commands-example.txt` pattern has a space and does not correctly re-include the example; use `!commands-example.txt` in your own repository if needed. Review ignore rules for virtual environments and secrets before committing a deployment.
 
 ## Build a standalone executable with PyInstaller
 
@@ -223,6 +285,7 @@ python3 -m venv .build-venv
 .build-venv/bin/python -m pip install -r requirements-build.txt
 .build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec
 ./dist/mqtt-listener --help
+./dist/mqtt-listener --version
 ./dist/mqtt-listener --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
@@ -233,9 +296,10 @@ python -m venv .build-venv
 .\.build-venv\Scripts\python.exe -m pip install -r requirements-build.txt
 .\.build-venv\Scripts\python.exe -m PyInstaller --clean --noconfirm mqtt-listener.spec
 .\dist\mqtt-listener.exe --help
+.\dist\mqtt-listener.exe --version
 ```
 
-`-m venv` creates the build environment; `-m pip install -r` reads the build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking. The spec creates a single console executable named `mqtt-listener` (`.exe` on Windows), collects the entire `paho.mqtt` package, and enables unbuffered output for service logs. It intentionally does not embed credentials, command config, or your external scripts. The build generates `build/`, `dist/`, and cache files locally; those are excluded from the source release. [PyInstaller documents these options](https://pyinstaller.org/en/stable/usage.html).
+`-m venv` creates the build environment; `-m pip install -r` reads the build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking. The spec creates a single console executable named `mqtt-listener` (`.exe` on Windows), collects the entire `paho.mqtt` package, bundles `VERSION`, and enables unbuffered output for service logs. It intentionally does not embed credentials, command config, or your external scripts. The build generates `build/`, `dist/`, and cache files locally; those are excluded from the source release. [PyInstaller documents these options](https://pyinstaller.org/en/stable/usage.html).
 
 Keep `commands.txt` and all scripts referenced by its command mappings on the target, at their configured paths. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your commands are operating-system dependencies; PyInstaller does not supply them. A one-file executable also needs permission to extract its bundled libraries into the target's temporary directory.
 
