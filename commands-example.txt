@@ -17,6 +17,30 @@ topics: mqtt-listener/example-device/commands
 # Sends plain online after connection/reconnection, QoS 1, not retained.
 online_topic: mqtt-listener/example-device/status
 
+# Optional Home Assistant MQTT discovery (same broker and credentials as above).
+# Disabled by default. Set true to create a device with one button per command.
+ha_enabled: false
+# Choose a UNIQUE stable ID per listener: letters, digits, underscores, hyphens.
+# Keep the ID unchanged when renaming the device to avoid duplicate entities.
+ha_device_id: example-device
+# The device name shown in HA. Button names are the exact text BEFORE each =.
+ha_device_name: MQTT Command Listener
+# Must match HA's discovery prefix (default homeassistant).
+ha_discovery_prefix: homeassistant
+# Concrete command topic covered by topics above. No wildcard is allowed here.
+# Existing wildcard subscriptions can cover it; no extra subscription is added.
+# If omitted, defaults to the first entry in topics; that entry must be concrete.
+ha_command_topic: mqtt-listener/example-device/commands
+# Unique retained online/offline topic; default mqtt-listener/<ha_device_id>/availability.
+# Must differ from command topics, online_topic and HA's birth/status topic.
+ha_availability_topic: mqtt-listener/example-device/availability
+# HA birth message: resend discovery when HA restarts. Defaults shown below.
+ha_status_topic: homeassistant/status
+ha_status_online_payload: online
+# Retain discovery definitions only; HA button commands are NEVER retained.
+# false still republishes discovery on connection and HA birth messages.
+ha_discovery_retain: true
+
 # Exact, case-sensitive trimmed payload = trusted shell command.
 # Helpers live in the project-root scripts/ folder. Adapt paths if installed elsewhere. These helpers may power off/reboot the host.
 # For a first test, use ONLY the harmless mapping from README.md.
