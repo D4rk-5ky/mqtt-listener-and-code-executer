@@ -5,6 +5,8 @@ from PyInstaller.utils.hooks import collect_all
 
 project = Path(SPECPATH)
 datas, binaries, hiddenimports = collect_all('paho.mqtt')
+# Resolve VERSION beside the entry script in a source checkout or frozen bundle.
+datas.append((str(project / 'VERSION'), '.'))
 analysis = Analysis(
     [str(project / 'mqtt-listener.py')],
     pathex=[str(project)],
