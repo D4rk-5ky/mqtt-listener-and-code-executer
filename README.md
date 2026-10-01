@@ -74,9 +74,9 @@ This is a custom line-based format, **not YAML**. Copy [commands-example.txt](co
 | `ha_discovery_prefix` | `homeassistant` | Match the discovery prefix configured in HA. Trailing `/` is removed. |
 | `ha_command_topic` | First entry in `topics` | Concrete publish topic used by every button. Must be covered by an existing `topics` subscription, including wildcard filters. No new command subscription is added. Set this explicitly if the first filter is a wildcard. |
 | `ha_availability_topic` | `mqtt-listener/<ha_device_id>/availability` | Unique retained `online`/`offline` topic for this listener. Must differ from command topics, `online_topic`, and HA's birth topic. |
-| `ha_status_topic` | `homeassistant/status` | HA birth/status topic. The listener subscribes at QoS 1 to restore discovery when HA starts. |
-| `ha_status_online_payload` | `online` | Exact, nonempty HA birth payload that triggers rediscovery. Other payloads on the birth topic are ignored. |
-| `ha_discovery_retain` | `true` | Retain discovery definitions at the broker. With `false`, reconnect and HA birth messages still resend them. Button commands always use `retain=false`. |
+| `ha_status_topic` | `homeassistant/status` | HA birth/status topic. The listener subscribes at QoS 1. A fresh non-retained online birth message restores discovery when HA starts; a retained online replay delivered immediately after subscription is ignored because reconnect discovery was already published by `on_connect()`. |
+| `ha_status_online_payload` | `online` | Exact, nonempty HA birth payload that triggers rediscovery only when the received birth message is non-retained. Other payloads and retained replays on the birth topic are ignored. |
+| `ha_discovery_retain` | `true` | Retain discovery definitions at the broker. With `false`, reconnect and fresh non-retained HA birth messages still resend them. Button commands always use `retain=false`. |
 | `commands:` | Empty mapping | Begins `payload = shell command` mappings. The first `=` separates the fields; later `=` characters remain in the command. |
 
 Blank lines and whole lines beginning with `#` after trimming are ignored. Inline comments are **not** supported. Keys, values, command names, and commands have surrounding whitespace stripped. Duplicate keys or command names use the last value. Unknown settings do not add capabilities. Do not quote values as if this were YAML: quote characters become part of the value.
@@ -94,7 +94,7 @@ commands:
 	ping = /usr/bin/printf 'MQTT listener test\n'
 ```
 
-Omitting credentials works only if the broker allows unauthenticated access. Add both when required. Use trusted, absolute script paths; relative command paths use the listener's working directory. No config option enables TLS, dry-run, command timeouts, completion reporting, retained-message rejection, or topic-specific command maps. Keepalive is fixed at 60 seconds; subscriptions use Paho's default QoS of 0. This configuration does not encrypt broker traffic.
+Omitting credentials works only if the broker allows unauthenticated access. Add both when required. Use trusted, absolute script paths; relative command paths use the listener's working directory. No config option enables TLS, dry-run, command timeouts, completion reporting, retained **command-message** rejection, or topic-specific command maps. The reserved HA birth/status topic is the exception: retained birth replays are ignored to avoid duplicate discovery refreshes. Keepalive is fixed at 60 seconds; subscriptions use Paho's default QoS of 0. This configuration does not encrypt broker traffic.
 
 ## Announce online to Home Assistant
 
@@ -123,7 +123,7 @@ The command example uses one literal tab before each active mapping. Spaces and 
 
 ## Home Assistant device and buttons (optional)
 
-This follows Homelab-Panel's MQTT discovery approach: button entities share a device identifier and device name, their discovery definitions can be retained, and discovery is repeated on MQTT reconnect and Home Assistant birth messages. It uses HA's existing MQTT integration and the same broker and credentials as the listener. No custom HA integration files or manual entity YAML are needed. See the official [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) and [MQTT button](https://www.home-assistant.io/integrations/button.mqtt/) documentation.
+This follows Homelab-Panel's MQTT discovery approach: button entities share a device identifier and device name, their discovery definitions can be retained, and discovery is repeated on MQTT reconnect and fresh non-retained Home Assistant birth messages. Retained `online` birth replays are ignored because reconnect handling already publishes discovery once. It uses HA's existing MQTT integration and the same broker and credentials as the listener. No custom HA integration files or manual entity YAML are needed. See the official [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) and [MQTT button](https://www.home-assistant.io/integrations/button.mqtt/) documentation.
 
 1. Configure Home Assistant's MQTT integration to use the same broker, with discovery enabled and a matching discovery prefix.
 2. Copy `commands-example.txt` to your private config. The optional HA settings are placed **after MQTT settings and before `commands:`**.
@@ -153,7 +153,7 @@ This creates device **My Test Server** with button **Ping server**. Pressing it 
 
 - Discovery topic: `<ha_discovery_prefix>/button/mqtt_listener_<ha_device_id>/<command-name-sha256>/config`. All buttons share the device identifier `mqtt_listener_<ha_device_id>`. This namespace is separate from Homelab-Panel devices.
 - Discovery and availability use QoS 1. HA button presses use QoS 0 and are never retained, matching the listener's existing command delivery expectations. The listener's handling of commands sent by other publishers is unchanged.
-- HA birth messages resend discovery and retained `online`. A retained `offline` Last Will is registered before connecting so broker-detected disconnection makes the buttons unavailable. Availability describes the MQTT connection, not command completion or host health; detection can be delayed by the network/keepalive.
+- A successful MQTT connect/reconnect publishes discovery once and retained `online` availability. A later fresh **non-retained** HA birth payload resends discovery. A retained `online` birth replay received immediately after subscribing is ignored, preventing an unnecessary second discovery snapshot on startup. A retained `offline` Last Will is registered before connecting so broker-detected disconnection makes the buttons unavailable. Availability describes the MQTT connection, not command completion or host health; detection can be delayed by the network/keepalive.
 - The original `online_topic` still sends its non-retained connection announcement independently. Give it a different topic from HA availability and HA birth/status.
 - A concrete `ha_command_topic` must match an existing command subscription. For example, `topics: servers/#` can be used with `ha_command_topic: servers/test/commands`. Paho's existing topic matcher validates coverage. Avoid overlapping subscriptions, which some brokers can deliver more than once.
 - Birth/status, availability, and this device's discovery namespace are reserved before command decoding when HA discovery is enabled. Their messages cannot trigger configured commands even through a broad wildcard subscription. Other command topics keep their existing behavior.
@@ -315,9 +315,12 @@ Install your built executable at that path first. The packaged service launches 
 
 ```bash
 python3 -B -m unittest discover -s tests -v
+sha256sum -c manifest.sha256
+python3 -B mqtt-listener.py --help
+python3 -B mqtt-listener.py --version
 ```
 
-`-B` suppresses bytecode files. `-m unittest` invokes the test runner; `discover -s tests` selects the test directory and `-v` prints individual results. Tests mock MQTT and process launches: they never connect to a broker or execute configured commands. See [VERIFICATION.md](VERIFICATION.md) for release checks and untested deployment behavior.
+`-B` suppresses normal bytecode-cache creation. `-m unittest` invokes the test runner; `discover -s tests` selects the test directory and `-v` prints individual results. Tests mock MQTT and process launches: they never connect to a broker or execute configured commands. `sha256sum -c` verifies every file listed in the release manifest; on macOS use `shasum -a 256 -c manifest.sha256`. The direct help/version commands require the pinned Paho dependency because the listener imports it before argument parsing, but neither command reads your config or connects to a broker. Checksums validate release contents, not publisher identity. See [VERIFICATION.md](VERIFICATION.md) for release checks and untested deployment behavior.
 
 ## License
 

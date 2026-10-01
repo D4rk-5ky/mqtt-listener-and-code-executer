@@ -33,19 +33,19 @@ Paho's legacy four-argument connection callback prints the result code. For ever
 
 After that loop, `rc == 0` and a configured status topic allow `client.publish(online_topic, payload='online', qos=1, retain=False)`. This uses the same authenticated connection, sends a plain payload after successful CONNACK, and also runs on reconnect. It does not wait for SUBACK or prove command readiness. The return object's `rc` is compared with `mqtt.MQTT_ERR_SUCCESS`: a successful queue operation or an error is logged. A try/except prevents publication errors from escaping the callback. No `wait_for_publish()` is used because blocking this callback would prevent the same network loop from processing acknowledgments. QoS 1 permits redelivery. This original announcement has no Last Will or heartbeat. Optional HA discovery uses a separate availability Last Will.
 
-On successful connections with HA enabled, `on_connect` also subscribes to the HA birth topic at QoS 1 and calls `publish_home_assistant_discovery`. Birth subscription failures are logged without preventing discovery or existing command handling. Failed connections do not announce HA discovery.
+On successful connections with HA enabled, `on_connect` also subscribes to the HA birth topic at QoS 1 and calls `publish_home_assistant_discovery` immediately. That initial publication means a retained broker replay of the HA `online` birth payload is redundant and is filtered later in `on_message`. Birth subscription failures are logged without preventing discovery or existing command handling. Failed connections do not announce HA discovery.
 
 ### `on_message(client, userdata, msg)`
 
 First returns without decoding or launching anything when `msg.topic` equals the configured status topic. MQTT 3 supplies no publisher identity, so reserving that topic prevents a wildcard subscription from executing a returned self-announcement; messages from other publishers on the reserved topic are ignored too. The same `online` payload remains eligible as a command on original command topics.
 
-When HA is enabled, the birth topic is checked next: only exact configured birth bytes trigger rediscovery, and all birth-topic messages return without command handling. The HA availability topic and the device discovery namespace also return before decoding, so wildcard subscriptions cannot turn metadata into commands.
+When HA is enabled, the birth topic is checked next. All birth-topic messages return without command handling. Rediscovery happens only when the payload exactly matches the configured birth bytes **and** `msg.retain` is false. A retained broker replay is ignored because `on_connect` has already published the complete discovery snapshot for that connection. `getattr(msg, 'retain', False)` keeps synthetic/legacy message objects without a retain attribute compatible while real Paho messages provide it. The HA availability topic and the device discovery namespace also return before decoding, so wildcard subscriptions cannot turn metadata into commands.
 
 For all other topics, calls `msg.payload.decode().strip()` to decode UTF-8 and remove surrounding whitespace, then logs the payload and topic. Invalid UTF-8 is outside the process-launch try/except and can raise from the callback, as before.
 
 Looks up the whole exact, case-sensitive payload, including internal spaces, in `userdata['commands']`. An unknown or empty mapping logs “No command found” and returns without launching a process. The incoming payload is not interpolated into the configured shell text.
 
-For a nonempty mapping, `subprocess.Popen(command, shell=True)` starts the configured text through the operating system shell without waiting. This keeps callbacks from blocking on job completion. The try/except logs process-creation errors, but cannot determine later command success. There is no child process tracking, timeout, result publication, duplicate suppression, retained-message filter, or topic-specific command map.
+For a nonempty mapping, `subprocess.Popen(command, shell=True)` starts the configured text through the operating system shell without waiting. This keeps callbacks from blocking on job completion. The try/except logs process-creation errors, but cannot determine later command success. There is no child process tracking, timeout, result publication, duplicate suppression, retained **command-message** filter, or topic-specific command map. The only retained-message suppression is the reserved HA birth/status replay described above.
 
 ### `valid_publish_topic(topic)`
 
@@ -65,7 +65,7 @@ Queues one discovery or availability message at QoS 1. It checks the Paho return
 
 Returns when HA is disabled. Builds one shared device block with a project-specific stable identifier, configurable name, model, manufacturer, and current `VERSION`. For each nonempty command name and nonempty shell mapping, hashes the exact UTF-8 name with SHA-256 for a stable path-safe ID. The name and `payload_press` remain the original trimmed command name, preserving Unicode, punctuation, and internal spaces. Only the left-hand name is advertised; no shell command is sent to HA.
 
-Publishes one JSON button definition to `<discovery_base>/<hash>/config` with the chosen retain setting, shared device block, availability topic, and existing command topic. Button presses are configured as QoS 0 and non-retained. After definitions, publishes retained `online` availability. Connect/reconnect and exact HA birth messages reuse this function. Removed discovery topics are not automatically cleared: README explains retained-topic cleanup.
+Publishes one JSON button definition to `<discovery_base>/<hash>/config` with the chosen retain setting, shared device block, availability topic, and existing command topic. Button presses are configured as QoS 0 and non-retained. After definitions, publishes retained `online` availability. Connect/reconnect and fresh non-retained exact HA birth messages reuse this function; retained birth replays do not. Removed discovery topics are not automatically cleared: README explains retained-topic cleanup.
 
 ### Main-block operations
 
@@ -142,8 +142,7 @@ The README explains every installation/publisher command and its flags: `cd`, Py
 - `tests/test_listener.py`: reusable offline tests; never connects to MQTT or executes configured commands.
 - `tests/test_online.py`: offline announcement, compatibility, and self-message isolation tests.
 - `tests/test_home_assistant.py`: discovery, identity, config validation, metadata isolation, button dispatch, and Last Will wiring tests.
-- `previous-release-manifest.json`: exact 0.0.7 ZIP inventory, hashes and permission fields; retained separately from the original-upload baseline.
-- `uploaded-release-manifest.json`: the 19 actual files in the supplied archive, their relative paths, sizes, SHA-256 hashes, and raw ZIP mode fields. Includes the archive hash, its original checksum text, and the four names listed there but absent from the upload. A zero mode means the input ZIP supplied no Unix permissions.
+- `uploaded-release-manifest.json`: exact provenance for the uploaded 0.0.8 baseline used to create 0.0.9. It records all 20 supplied files, relative paths, sizes, SHA-256 hashes, raw ZIP Unix-mode fields, the source ZIP hash, and the two names referenced by the uploaded checksum manifest but absent from that ZIP. It is descriptive input evidence, not a replacement for the current `manifest.sha256`. A zero mode means the input ZIP entry supplied no Unix permission bits.
 - `requirements.txt`: pins Paho 2.1.0, which supports the existing legacy four-argument connection callback. Paho may issue a deprecation warning for that callback API; it is deliberately preserved for this focused change.
 - `requirements-build.txt`: includes runtime requirements with `-r requirements.txt` and pins PyInstaller 6.22.3. It is used only in the build environment.
 - `mqtt-listener.spec`: standalone executable build definition, explained below.
@@ -220,7 +219,7 @@ These tests reuse `test_listener` loaders and main-block helpers. All process la
 | `test_online_topic_and_discovery_namespace_collisions_are_rejected` | Ensures HA metadata cannot replace original status or explicit command paths. |
 | `test_custom_settings_and_wildcard_with_explicit_command_topic` | Checks configurable metadata paths, birth payload and retain behavior; confirms wildcard coverage delegates to Paho. |
 | `test_connect_reconnect_and_refused_connection` | Checks rediscovery and birth subscriptions after success, and no HA publication after refusal. |
-| `test_ha_birth_republishes_without_command_execution` | Checks exact/default/custom birth payloads, including retained messages, without shell dispatch. |
+| `test_ha_birth_ignores_retained_replay_and_republishes_fresh_birth` | Regression test for the 0.0.10 fix: a retained HA `online` replay causes no discovery publication or shell dispatch, while a fresh non-retained default/custom birth payload still republishes discovery without executing commands. |
 | `test_metadata_is_reserved_before_decoding_with_broad_subscriptions` | Blocks metadata from command execution or UTF-8 decoding, preserving online as a normal command on command topics. |
 | `test_announcement_and_discovery_coexist` | Preserves original non-retained online announcements alongside HA discovery. |
 | `test_publish_errors_do_not_stop_remaining_discovery_or_commands` | Exercises exception and error-code handling while later metadata and commands still work. |
