@@ -170,9 +170,21 @@ class HomeAssistantTests(unittest.TestCase):
         self.client.publish.assert_not_called()
         self.assertNotIn(('homeassistant/status',), [c.args for c in self.client.subscribe.call_args_list])
 
-    def test_ha_birth_republishes_without_command_execution(self):
+    def test_ha_birth_ignores_retained_replay_and_republishes_fresh_birth(self):
         self.data['commands']['online'] = 'should only execute on command topic'
+
+        # Reproduce startup ordering: on_connect publishes discovery once, then
+        # the broker may replay retained homeassistant/status=online. That replay
+        # must not cause a second discovery snapshot.
+        self.listener['on_connect'](self.client, self.data, {}, 0)
+        self.assertEqual(len(self.buttons()), 4)
+        initial_publish_count = self.client.publish.call_count
         self.message('homeassistant/status', b'online', retained=True)
+        self.assertEqual(self.client.publish.call_count, initial_publish_count)
+        self.launch.assert_not_called()
+
+        self.client.reset_mock()
+        self.message('homeassistant/status', b'online', retained=False)
         self.assertEqual(len(self.buttons()), 4)
         self.launch.assert_not_called()
         self.client.reset_mock()

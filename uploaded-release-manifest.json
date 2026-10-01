@@ -1,0 +1,138 @@
+{
+  "description": "Exact inventory of the uploaded 0.0.8 baseline archive used to create release 0.0.9. This is provenance data only; it does not define the final release manifest.",
+  "source_archive_name": "mqtt-listener-and-code-executer-main (1).zip",
+  "source_archive_sha256": "2d573f8fc42524b2ed1ae79e75cce77b461bf9182477a1939e01bbaf5bd45922",
+  "detected_version": "0.0.8",
+  "project_root_in_archive": "mqtt-listener-and-code-executer-main",
+  "file_count": 20,
+  "files": [
+    {
+      "path": ".gitignore",
+      "size": 34,
+      "sha256": "a1c5b86c8e4ed7c15e86e2e4881eaed335348a1e2c233ac768cab4d88f57550d",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "README.md",
+      "size": 29768,
+      "sha256": "6d09a3519653a83ea7cb561eb258c0b43aeb1ac8b95eb9df2fe8579923968f9f",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "VERIFICATION.md",
+      "size": 6527,
+      "sha256": "a229fe2f98199cbd51d4c29269cc733fbec9373744e8c4b59ceca32140ee8987",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "VERSION",
+      "size": 6,
+      "sha256": "7105589d4dbff8c4bfb35a52b415c9157683ff001725ac002ceb245a53590fd9",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "VERSIONING.md",
+      "size": 13956,
+      "sha256": "7ed381f84b34ffae1cf644c43b5558badb023ed0ed456b31372af3286cf06fde",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "commands-example.txt",
+      "size": 3610,
+      "sha256": "19b157dedfb50fe672bf6d5590c393408aff84f51784d492789dab9538413b6d",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "commented_code_map.md",
+      "size": 34209,
+      "sha256": "19b14fa777ac6c8f80d3317ddaa0bde83252c8054888bdb654c7ceec451b07a9",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "manifest.sha256",
+      "size": 1823,
+      "sha256": "569f537c0a83e5abb0701b1b2826f23b5f012ff21bf3cf6047bb23031dcf3f83",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "mqtt-listener.py",
+      "size": 11994,
+      "sha256": "9a5eeb1fcce1c82cb780a01a6c42b94ea8b77f2ea8eee4374a1e04a1036cb8d2",
+      "zip_unix_mode": "0755"
+    },
+    {
+      "path": "mqtt-listener.service",
+      "size": 417,
+      "sha256": "ff9102eb75d76ae6cd000d553e0669ad903c0ac6037b87cbfdcbed5e9a445d99",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "mqtt-listener.spec",
+      "size": 985,
+      "sha256": "7c8bb6a34cd1d17c58a351a233eeb655fe38edf1f3ab7d447e488291d5db360d",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "requirements-build.txt",
+      "size": 40,
+      "sha256": "62d2297563d627ecc05af21002ca3659ca1714957a089e0d5a7e40ebdd2e5ed1",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "requirements.txt",
+      "size": 81,
+      "sha256": "d700980e5fe5a891688a5cbb4e57336d7664443a00546e6a549f9eb7f3f62cea",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "scripts/reboot-cancel.sh",
+      "size": 89,
+      "sha256": "cee6c36f7df542b98c3ef126169e0ca94889289955a67f5c7a7da82444aa409f",
+      "zip_unix_mode": "0755"
+    },
+    {
+      "path": "scripts/reboot-delay.sh",
+      "size": 61,
+      "sha256": "fdce9eb50341959db0ed04880c59bebf0069ff60d7aeb30313fbf6189c349694",
+      "zip_unix_mode": "0755"
+    },
+    {
+      "path": "scripts/shutdown-cancel.sh",
+      "size": 95,
+      "sha256": "95dddfb0b686436bbef0f582abf749c921a027f2db1ce40a0e5693977ae05b18",
+      "zip_unix_mode": "0755"
+    },
+    {
+      "path": "scripts/shutdown-delay.sh",
+      "size": 72,
+      "sha256": "016f999fc103cdc880bb712b2083e6c81a61a88198e9b3c03c9101bcfa74a9c4",
+      "zip_unix_mode": "0755"
+    },
+    {
+      "path": "tests/test_home_assistant.py",
+      "size": 14004,
+      "sha256": "7461db1bdd23459706c72f5ac2fbd0c63d0c1bf3de8861fcd474d85f5528d958",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "tests/test_listener.py",
+      "size": 13077,
+      "sha256": "c0de3605eebc06a71b5308c31b96e6dc944890884ffa6cc2de837a92f185283a",
+      "zip_unix_mode": "0000"
+    },
+    {
+      "path": "tests/test_online.py",
+      "size": 4432,
+      "sha256": "f86ad9418a2f9cbd7d28ffe41f15d4e36b8c6e3c42ab1044b9d7c5affaf8c4e0",
+      "zip_unix_mode": "0000"
+    }
+  ],
+  "manifest_references_missing_from_upload": [
+    "previous-release-manifest.json",
+    "uploaded-release-manifest.json"
+  ],
+  "notes": [
+    "A zip_unix_mode of 0000 means the source ZIP entry did not carry Unix permission bits.",
+    "The uploaded manifest.sha256 referenced files that were absent from the uploaded archive; those names are recorded above rather than invented."
+  ]
+}

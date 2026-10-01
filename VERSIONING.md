@@ -1,6 +1,24 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds on `0.0.7` and is `0.0.8`. The original supplied archive is `0.0.6`. `VERSION` is the single version source and is exposed by `--version`. Keep this existing uppercase filename as the project’s canonical versioning log.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds directly on the packaged `0.0.9` baseline and is `0.0.10`. `VERSION` is the single runtime version source and is exposed by `--version`. This file is the project’s canonical change log.
+
+## 0.0.10 — 2026-10-01
+
+- Inspected the complete packaged 0.0.9 project before editing and ran its 52-test offline suite successfully. The reported Home Assistant issue was confirmed in the discovery refresh path: `on_connect()` publishes discovery immediately after subscribing to the HA birth/status topic, while `on_message()` previously treated a retained broker replay of the same `online` birth payload as a second fresh birth and republished the full snapshot.
+- Fixed only that HA metadata path: retained messages on the configured HA birth/status topic are still reserved and ignored for command execution, but now they also do **not** trigger rediscovery. A matching **non-retained** birth message still republishes discovery, preserving recovery after a genuine later HA restart/birth. Ordinary command topics keep their existing retained/repeated-message behavior.
+- Updated the existing HA regression test to prove both sides of the contract: retained `online` causes zero discovery publishes and no shell launch; fresh non-retained default/custom birth payloads still republish discovery and never execute commands. The overall test count remains 52 because the existing birth test was strengthened rather than duplicated.
+- Updated `README.md`, `commands-example.txt`, and `commented_code_map.md` to describe the retained-replay guard and distinguish it from normal command-message handling. No configuration key, dependency, service directive, helper script, command mapping, discovery topic, entity ID algorithm, button QoS/retain behavior, or CLI flag changed.
+- Incremented `VERSION` exactly once from `0.0.9` to `0.0.10`, refreshed `VERIFICATION.md`, and regenerated `manifest.sha256`. The final package preserves every 0.0.9 path and adds or removes no project files.
+
+## 0.0.9 — 2026-10-01
+
+- Inspected all 20 files in the uploaded 0.0.8 ZIP before editing and ran its complete 52-test offline suite successfully. Reviewed the listener, service, build spec, configuration example, four shell helpers, all tests, README, code map, verification report, version history, and checksum manifest as one baseline.
+- Found and corrected a release-provenance inconsistency: the uploaded `manifest.sha256` referenced `previous-release-manifest.json` and `uploaded-release-manifest.json`, but neither file was present in the ZIP. The uploaded verification text also described archive counts/files that did not match the supplied 0.0.8 archive. No missing historical file was fabricated.
+- Added `uploaded-release-manifest.json`, generated directly from the supplied 0.0.8 ZIP. It records the exact 20-file input inventory, sizes, SHA-256 hashes, ZIP permission fields, source-archive SHA-256, and the two stale manifest references that were absent from the upload.
+- Preserved runtime behavior: `mqtt-listener.py`, `mqtt-listener.service`, `mqtt-listener.spec`, both requirements files, `commands-example.txt`, all four power helpers, and all three test modules are unchanged from the uploaded 0.0.8 baseline. Existing shell execution, retained/repeated-message behavior, MQTT subscriptions, Home Assistant discovery, Last Will, and helper safety limitations are therefore unchanged.
+- Confirmed the existing CLI already exposes `-h`/`--help`, `--version`, and required `-c`/`--config` with descriptive help. Confirmed the configuration example already includes every supported listener and Home Assistant setting, so no new runtime option or duplicate parser was added.
+- Updated README current-use verification commands, the full commented code map, this change log, and `VERIFICATION.md`. The supplied disclaimer/liability text remains in README with project-local links and no unrelated project name. Regenerated `manifest.sha256` so it references only files actually included in 0.0.9.
+- Incremented `VERSION` exactly once from `0.0.8` to `0.0.9`. The final package preserves all 20 original project paths, adds only the actual-upload provenance manifest, excludes bytecode/build/temp caches, and is verified against both staging and the uploaded archive inventory.
 
 ## 0.0.8 — 2026-09-28
 

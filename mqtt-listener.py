@@ -189,7 +189,12 @@ def on_message(client, userdata, msg):
         # Metadata received through a wildcard command subscription must never
         # select a shell command. Compare birth bytes before ordinary decoding.
         if msg.topic == ha['status_topic']:
-            if msg.payload == ha['status_online_payload'].encode('utf-8'):
+            # on_connect() already publishes discovery. Ignore a retained broker
+            # replay of HA's online status so startup does not immediately publish
+            # the same discovery snapshot a second time. A fresh HA birth still
+            # requests rediscovery.
+            if (not getattr(msg, 'retain', False) and
+                    msg.payload == ha['status_online_payload'].encode('utf-8')):
                 publish_home_assistant_discovery(client, userdata)
             return
         if msg.topic == ha['availability_topic'] or msg.topic.startswith(ha['discovery_base']):
