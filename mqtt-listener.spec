@@ -1,4 +1,5 @@
-# Run: python -m PyInstaller --clean --noconfirm mqtt-listener.spec
+# Run directly: python -m PyInstaller --clean --noconfirm mqtt-listener.spec
+# Preferred Linux wrapper: ./build-pyinstaller.sh
 # Config and user-selected command scripts stay external and editable.
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
@@ -26,7 +27,7 @@ executable = EXE(
     analysis.binaries,
     analysis.datas,
     [('u', None, 'OPTION')],
-    name='mqtt-listener',
+    name='SnapBeforeWatchTower',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

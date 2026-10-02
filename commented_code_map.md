@@ -1,6 +1,6 @@
 # Commented code map
 
-This map explains the current project, including why each operation exists and its limitations. The listener supports complete payload names and shell commands, including spaces, an optional online announcement, and optional Home Assistant device/button discovery. The unit uses `/root/Source/mqtt-listener-and-code-executer` for its working directory, listener, and config. Shell scripts, the supplied `.gitignore`, and dependency pins are preserved. The build recipe includes the version resource.
+This map explains the current project, including why each operation exists and its limitations. The listener supports complete payload names and shell commands, including spaces, an optional online announcement, and optional Home Assistant device/button discovery. The unit uses `/root/Source/mqtt-listener-and-code-executer` for its working directory, listener, and config. Runtime shell behavior and dependency pins are preserved. The release also includes a build-only Bash wrapper, dedicated ignored build workspace, and a one-file PyInstaller recipe containing the version resource. The wrapper enforces that `dist/` contains exactly the final executable and its generated `README.md`.
 
 ## `mqtt-listener.py`
 
@@ -33,19 +33,19 @@ Paho's legacy four-argument connection callback prints the result code. For ever
 
 After that loop, `rc == 0` and a configured status topic allow `client.publish(online_topic, payload='online', qos=1, retain=False)`. This uses the same authenticated connection, sends a plain payload after successful CONNACK, and also runs on reconnect. It does not wait for SUBACK or prove command readiness. The return object's `rc` is compared with `mqtt.MQTT_ERR_SUCCESS`: a successful queue operation or an error is logged. A try/except prevents publication errors from escaping the callback. No `wait_for_publish()` is used because blocking this callback would prevent the same network loop from processing acknowledgments. QoS 1 permits redelivery. This original announcement has no Last Will or heartbeat. Optional HA discovery uses a separate availability Last Will.
 
-On successful connections with HA enabled, `on_connect` also subscribes to the HA birth topic at QoS 1 and calls `publish_home_assistant_discovery`. Birth subscription failures are logged without preventing discovery or existing command handling. Failed connections do not announce HA discovery.
+On successful connections with HA enabled, `on_connect` also subscribes to the HA birth topic at QoS 1 and calls `publish_home_assistant_discovery` immediately. That initial publication means a retained broker replay of the HA `online` birth payload is redundant and is filtered later in `on_message`. Birth subscription failures are logged without preventing discovery or existing command handling. Failed connections do not announce HA discovery.
 
 ### `on_message(client, userdata, msg)`
 
 First returns without decoding or launching anything when `msg.topic` equals the configured status topic. MQTT 3 supplies no publisher identity, so reserving that topic prevents a wildcard subscription from executing a returned self-announcement; messages from other publishers on the reserved topic are ignored too. The same `online` payload remains eligible as a command on original command topics.
 
-When HA is enabled, the birth topic is checked next: only exact configured birth bytes trigger rediscovery, and all birth-topic messages return without command handling. The HA availability topic and the device discovery namespace also return before decoding, so wildcard subscriptions cannot turn metadata into commands.
+When HA is enabled, the birth topic is checked next. All birth-topic messages return without command handling. Rediscovery happens only when the payload exactly matches the configured birth bytes **and** `msg.retain` is false. A retained broker replay is ignored because `on_connect` has already published the complete discovery snapshot for that connection. `getattr(msg, 'retain', False)` keeps synthetic/legacy message objects without a retain attribute compatible while real Paho messages provide it. The HA availability topic and the device discovery namespace also return before decoding, so wildcard subscriptions cannot turn metadata into commands.
 
 For all other topics, calls `msg.payload.decode().strip()` to decode UTF-8 and remove surrounding whitespace, then logs the payload and topic. Invalid UTF-8 is outside the process-launch try/except and can raise from the callback, as before.
 
 Looks up the whole exact, case-sensitive payload, including internal spaces, in `userdata['commands']`. An unknown or empty mapping logs “No command found” and returns without launching a process. The incoming payload is not interpolated into the configured shell text.
 
-For a nonempty mapping, `subprocess.Popen(command, shell=True)` starts the configured text through the operating system shell without waiting. This keeps callbacks from blocking on job completion. The try/except logs process-creation errors, but cannot determine later command success. There is no child process tracking, timeout, result publication, duplicate suppression, retained-message filter, or topic-specific command map.
+For a nonempty mapping, `subprocess.Popen(command, shell=True)` starts the configured text through the operating system shell without waiting. This keeps callbacks from blocking on job completion. The try/except logs process-creation errors, but cannot determine later command success. There is no child process tracking, timeout, result publication, duplicate suppression, retained **command-message** filter, or topic-specific command map. The only retained-message suppression is the reserved HA birth/status replay described above.
 
 ### `valid_publish_topic(topic)`
 
@@ -65,7 +65,7 @@ Queues one discovery or availability message at QoS 1. It checks the Paho return
 
 Returns when HA is disabled. Builds one shared device block with a project-specific stable identifier, configurable name, model, manufacturer, and current `VERSION`. For each nonempty command name and nonempty shell mapping, hashes the exact UTF-8 name with SHA-256 for a stable path-safe ID. The name and `payload_press` remain the original trimmed command name, preserving Unicode, punctuation, and internal spaces. Only the left-hand name is advertised; no shell command is sent to HA.
 
-Publishes one JSON button definition to `<discovery_base>/<hash>/config` with the chosen retain setting, shared device block, availability topic, and existing command topic. Button presses are configured as QoS 0 and non-retained. After definitions, publishes retained `online` availability. Connect/reconnect and exact HA birth messages reuse this function. Removed discovery topics are not automatically cleared: README explains retained-topic cleanup.
+Publishes one JSON button definition to `<discovery_base>/<hash>/config` with the chosen retain setting, shared device block, availability topic, and existing command topic. Button presses are configured as QoS 0 and non-retained. After definitions, publishes retained `online` availability. Connect/reconnect and fresh non-retained exact HA birth messages reuse this function; retained birth replays do not. Removed discovery topics are not automatically cleared: README explains retained-topic cleanup.
 
 ### Main-block operations
 
@@ -94,7 +94,7 @@ Publishes one JSON button definition to `<discovery_base>/<hash>/config` with th
 
 `commands-example.txt` lists all seven existing listener settings/sections, nine optional HA settings after the MQTT settings, and four power-command mappings. HA is disabled by default; the device name and stable ID are editable. Its whole-line comments explain defaults, authentication, topics, status, and paths. Each mapping starts with one literal tab; the parser's `strip()` accepts tabs or spaces. Commented optional examples explain complete Docker payloads, short aliases, quoted paths/arguments, and commands ending in a colon. The four active power payload names and all broker values are preserved; helper paths point to `/root/Source/mqtt-listener-and-code-executer/scripts/`. Copy it to a private local `commands.txt`, adapt it, and initially test with only a harmless command. The application does not select this filename automatically.
 
-The supplied `.gitignore` contains `commands*` and `! commands-example.txt`. `commands*` ignores matching files; the space after `!` prevents the intended example exception. Its bytes are preserved. The upload does not contain the `.gitigore` mentioned in historical release records.
+`.gitignore` uses `commands*` to keep local command/config copies out of version control and `!commands-example.txt` to keep the shipped example visible. It ignores the dedicated `.pyinstaller-build/` workspace, generated `dist/`, Python caches, and legacy `.build-venv/`/`build/` paths so current or stale build output is not committed accidentally.
 
 ## Shell helpers: every command/operator
 
@@ -142,11 +142,11 @@ The README explains every installation/publisher command and its flags: `cd`, Py
 - `tests/test_listener.py`: reusable offline tests; never connects to MQTT or executes configured commands.
 - `tests/test_online.py`: offline announcement, compatibility, and self-message isolation tests.
 - `tests/test_home_assistant.py`: discovery, identity, config validation, metadata isolation, button dispatch, and Last Will wiring tests.
-- `previous-release-manifest.json`: exact 0.0.7 ZIP inventory, hashes and permission fields; retained separately from the original-upload baseline.
-- `uploaded-release-manifest.json`: the 19 actual files in the supplied archive, their relative paths, sizes, SHA-256 hashes, and raw ZIP mode fields. Includes the archive hash, its original checksum text, and the four names listed there but absent from the upload. A zero mode means the input ZIP supplied no Unix permissions.
+- `uploaded-release-manifest.json`: exact provenance for the uploaded 0.0.8 baseline used to create 0.0.9. It records all 20 supplied files, relative paths, sizes, SHA-256 hashes, raw ZIP Unix-mode fields, the source ZIP hash, and the two names referenced by the uploaded checksum manifest but absent from that ZIP. It is descriptive input evidence, not a replacement for the current `manifest.sha256`. A zero mode means the input ZIP entry supplied no Unix permission bits.
 - `requirements.txt`: pins Paho 2.1.0, which supports the existing legacy four-argument connection callback. Paho may issue a deprecation warning for that callback API; it is deliberately preserved for this focused change.
 - `requirements-build.txt`: includes runtime requirements with `-r requirements.txt` and pins PyInstaller 6.22.3. It is used only in the build environment.
-- `mqtt-listener.spec`: standalone executable build definition, explained below.
+- `mqtt-listener.spec`: one-file PyInstaller build definition, explained below.
+- `build-pyinstaller.sh`: Linux/Unix build wrapper. It resolves its own project root, keeps the build venv at `.pyinstaller-build/venv/` and PyInstaller work files at `.pyinstaller-build/work/`, installs `requirements-build.txt`, recreates `dist/` empty, runs the spec, creates `dist/README.md`, verifies that exactly the executable plus README are present, then executes bundled `--version` and `--help` smoke checks. `PYTHON_BIN` can select the interpreter used only when the build venv must first be created.
 
 ## Test functions and commands
 
@@ -220,7 +220,7 @@ These tests reuse `test_listener` loaders and main-block helpers. All process la
 | `test_online_topic_and_discovery_namespace_collisions_are_rejected` | Ensures HA metadata cannot replace original status or explicit command paths. |
 | `test_custom_settings_and_wildcard_with_explicit_command_topic` | Checks configurable metadata paths, birth payload and retain behavior; confirms wildcard coverage delegates to Paho. |
 | `test_connect_reconnect_and_refused_connection` | Checks rediscovery and birth subscriptions after success, and no HA publication after refusal. |
-| `test_ha_birth_republishes_without_command_execution` | Checks exact/default/custom birth payloads, including retained messages, without shell dispatch. |
+| `test_ha_birth_ignores_retained_replay_and_republishes_fresh_birth` | Regression test for the 0.0.10 fix: a retained HA `online` replay causes no discovery publication or shell dispatch, while a fresh non-retained default/custom birth payload still republishes discovery without executing commands. |
 | `test_metadata_is_reserved_before_decoding_with_broad_subscriptions` | Blocks metadata from command execution or UTF-8 decoding, preserving online as a normal command on command topics. |
 | `test_announcement_and_discovery_coexist` | Preserves original non-retained online announcements alongside HA discovery. |
 | `test_publish_errors_do_not_stop_remaining_discovery_or_commands` | Exercises exception and error-code handling while later metadata and commands still work. |
@@ -228,16 +228,33 @@ These tests reuse `test_listener` loaders and main-block helpers. All process la
 | `test_main_configures_last_will_before_connect_and_reuses_callbacks` | Checks main-block Will settings/order and existing callback registration. |
 | `test_topic_validation_handles_utf8_byte_limit` | Checks byte length rather than character length and rejects empty/wildcard/null topics. |
 
-## PyInstaller spec: every operation
+## PyInstaller build: every operation
+
+### `mqtt-listener.spec`
 
 - `Path(SPECPATH)` resolves the project directory from the spec's location, so its entry-script path is explicit.
 - `collect_all('paho.mqtt')` supplies Paho submodules, data, and binaries, including modules imported indirectly. Python standard-library modules referenced by the script are discovered by PyInstaller's analysis.
-- `datas.append((str(project / 'VERSION'), '.'))` puts the shared version file at the bundle root beside the entry script so `--version` works in the executable.
-- `Analysis([...], pathex=[...], binaries=..., datas=..., hiddenimports=...)` analyzes the existing listener and collected MQTT dependencies. Empty hook/exclusion lists use default hooks and exclude no modules; `noarchive=False` allows Python-module archiving.
+- `datas.append((str(project / 'VERSION'), '.'))` puts the shared version file into the bundle so `--version` uses the same release number as source execution.
+- `Analysis([...], pathex=[...], binaries=..., datas=..., hiddenimports=...)` analyzes the existing listener and collected MQTT dependencies. Empty hook/exclusion lists use default hooks and exclude no requested modules; `noarchive=False` permits PyInstaller's Python-module archive.
 - `PYZ(analysis.pure)` builds the bundled Python module archive.
-- `EXE(...)` includes that archive, scripts, binaries, and data in one executable. `('u', None, 'OPTION')` enables unbuffered Python stdout/stderr inside the bundle for service logs. The name is `mqtt-listener`; `console=True` preserves normal CLI/log output. `debug=False`, `strip=False`, and `upx=False` disable debug bootloader output, binary stripping, and UPX compression. `bootloader_ignore_signals=False` retains ordinary bootloader signal behavior.
-- There is no `COLLECT` stage because this spec produces a one-file executable. Config and referenced helper scripts are not bundled or copied: absolute command paths continue to identify the user's external files.
-- The README explains `python -m PyInstaller --clean --noconfirm mqtt-listener.spec`, requirements installation, output paths, and the executable's `--help`, `--version`, and `--config` flags. A build must match the target OS/architecture; Windows builds do not substitute for Linux service builds.
+- `EXE(...)` builds the console entry executable from the Python archive, scripts, analyzed binaries, and data. `('u', None, 'OPTION')` enables unbuffered stdout/stderr for service logs. Passing `analysis.binaries` and `analysis.datas` directly to `EXE` creates PyInstaller one-file output instead of a companion-file directory. The PyInstaller executable is named `SnapBeforeWatchTower`; debug, stripping, and UPX remain disabled.
+- There is intentionally no `COLLECT(...)` stage. PyInstaller embeds the Python runtime, Paho modules, `VERSION`, and required shared libraries/support files into the single executable. Config and referenced helper scripts stay external and editable. At runtime PyInstaller may extract embedded components to its own temporary directory; that does not populate project `dist/` with companion files.
+
+### `build-pyinstaller.sh`
+
+- `#!/bin/bash` selects Bash; `set -euo pipefail` stops on command failures, unset variables, and failed pipeline components.
+- `PROJECT_DIR=...BASH_SOURCE[0]...` resolves the directory containing the build script and `cd`s there so the build works even when invoked from another working directory.
+- `PYTHON_BIN=${PYTHON_BIN:-python3}` defaults creation of the build venv to `python3` while allowing an explicit interpreter override. `command -v` rejects a missing interpreter before changing build state.
+- If `.pyinstaller-build/venv/bin/python` does not exist, `$PYTHON_BIN -m venv .pyinstaller-build/venv` creates the isolated build environment. Existing valid build environments are reused.
+- `.pyinstaller-build/venv/bin/python -m pip install -r requirements-build.txt` installs the pinned runtime/build modules into that environment. The requirements file already includes `requirements.txt`, avoiding a duplicate dependency list.
+- `rm -rf -- "$WORK_DIR" "$DIST_DIR"` removes only `.pyinstaller-build/work/` and generated `dist/` before rebuilding. It does not delete the reusable build venv, runtime config, source, or external command scripts. The wrapper recreates both work and output directories in known states.
+- A `find ... -print -quit` guard verifies that `dist/` is empty before PyInstaller starts. The build refuses to continue if that invariant is unexpectedly violated.
+- `.pyinstaller-build/venv/bin/python -m PyInstaller --clean --noconfirm --distpath "$DIST_DIR" --workpath "$WORK_DIR" mqtt-listener.spec` runs the shared one-file spec, explicitly separates final output from ignored temporary build state, clears PyInstaller cache data for this build, and replaces output non-interactively.
+- The script requires `dist/SnapBeforeWatchTower` to be a regular executable file. Missing/non-executable output fails the build rather than printing success. It then writes `dist/README.md` with the build-output guidance requested for deployable binaries.
+- `mapfile` plus `find ... -print0` collects every top-level entry in `dist/` without breaking on spaces. The script succeeds only when the count is exactly two and the entries are `dist/SnapBeforeWatchTower` and `dist/README.md`; any third/unknown file or subdirectory causes a failure and is listed for diagnosis.
+- The final bundled executable runs `--version` and `--help`; the latter output is discarded after its exit status is checked. These are smoke checks only and do not connect to MQTT or read a config.
+
+The README documents the wrapper, manual equivalent, two-file `dist/` layout, dedicated `.pyinstaller-build/` workspace, PyInstaller runtime-extraction behavior, and how to adapt systemd `ExecStart`. A build still must match the target operating system/architecture.
 
 ## Complete-command and direct-execution usage
 
@@ -246,7 +263,7 @@ These tests reuse `test_listener` loaders and main-block helpers. All process la
 - `run tool = "/opt/my tools/runner" --label="A B"` demonstrates shell quoting of an executable path and argument with spaces; the path is a placeholder.
 - `print label = printf label:` demonstrates a command ending with a colon. `printf` writes the literal `label:` text in this example.
 - `. .venv/bin/activate` loads the environment into the current shell so the script's `env python3` header finds its dependencies. `./mqtt-listener.py --help` runs the local executable and prints usage. `--version` prints the application name and version and exits; `--config` (alias `-c`) selects its config file.
-- `chmod +x mqtt-listener.py scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh` restores execution permission for all five scripts if extraction dropped it.
+- `chmod +x mqtt-listener.py build-pyinstaller.sh scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh` restores execution permission for the listener, build wrapper, and four runtime helpers if extraction dropped it.
 - `mosquitto_pub ... -m 'docker start open-webui'` uses shell quotes to pass one complete MQTT payload; the quotes are not transmitted. Host, port, and topic flags are explained in README.
 - `sha256sum -c manifest.sha256` checks every listed release-file checksum, excluding the manifest itself. On macOS, `shasum -a 256 -c manifest.sha256` performs the same check. These validate file contents against the supplied list, not publisher identity.
 
