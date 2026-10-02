@@ -1,6 +1,6 @@
 # Commented code map
 
-This map explains the current project, including why each operation exists and its limitations. The listener supports complete payload names and shell commands, including spaces, an optional online announcement, and optional Home Assistant device/button discovery. The unit uses `/root/Source/mqtt-listener-and-code-executer` for its working directory, listener, and config. Shell scripts, the supplied `.gitignore`, and dependency pins are preserved. The build recipe includes the version resource.
+This map explains the current project, including why each operation exists and its limitations. The listener supports complete payload names and shell commands, including spaces, an optional online announcement, and optional Home Assistant device/button discovery. The unit uses `/root/Source/mqtt-listener-and-code-executer` for its working directory, listener, and config. Runtime shell behavior and dependency pins are preserved. The release also includes a build-only Bash wrapper, corrected build-output ignore rules, and an onedir PyInstaller recipe containing the version resource.
 
 ## `mqtt-listener.py`
 
@@ -94,7 +94,7 @@ Publishes one JSON button definition to `<discovery_base>/<hash>/config` with th
 
 `commands-example.txt` lists all seven existing listener settings/sections, nine optional HA settings after the MQTT settings, and four power-command mappings. HA is disabled by default; the device name and stable ID are editable. Its whole-line comments explain defaults, authentication, topics, status, and paths. Each mapping starts with one literal tab; the parser's `strip()` accepts tabs or spaces. Commented optional examples explain complete Docker payloads, short aliases, quoted paths/arguments, and commands ending in a colon. The four active power payload names and all broker values are preserved; helper paths point to `/root/Source/mqtt-listener-and-code-executer/scripts/`. Copy it to a private local `commands.txt`, adapt it, and initially test with only a harmless command. The application does not select this filename automatically.
 
-The supplied `.gitignore` contains `commands*` and `! commands-example.txt`. `commands*` ignores matching files; the space after `!` prevents the intended example exception. Its bytes are preserved. The upload does not contain the `.gitigore` mentioned in historical release records.
+`.gitignore` uses `commands*` to keep local command/config copies out of version control and `!commands-example.txt` to keep the shipped example visible. It also ignores `.build-venv/`, `build/`, `dist/`, `__pycache__/`, `*.pyc`, and `*.pyo` so PyInstaller and Python cache output is not accidentally packaged or committed.
 
 ## Shell helpers: every command/operator
 
@@ -145,7 +145,8 @@ The README explains every installation/publisher command and its flags: `cd`, Py
 - `uploaded-release-manifest.json`: exact provenance for the uploaded 0.0.8 baseline used to create 0.0.9. It records all 20 supplied files, relative paths, sizes, SHA-256 hashes, raw ZIP Unix-mode fields, the source ZIP hash, and the two names referenced by the uploaded checksum manifest but absent from that ZIP. It is descriptive input evidence, not a replacement for the current `manifest.sha256`. A zero mode means the input ZIP entry supplied no Unix permission bits.
 - `requirements.txt`: pins Paho 2.1.0, which supports the existing legacy four-argument connection callback. Paho may issue a deprecation warning for that callback API; it is deliberately preserved for this focused change.
 - `requirements-build.txt`: includes runtime requirements with `-r requirements.txt` and pins PyInstaller 6.22.3. It is used only in the build environment.
-- `mqtt-listener.spec`: standalone executable build definition, explained below.
+- `mqtt-listener.spec`: onedir PyInstaller build definition, explained below.
+- `build-pyinstaller.sh`: Linux/Unix build wrapper. It resolves its own project root, creates/reuses `.build-venv`, installs `requirements-build.txt`, removes stale `build/` and `dist/`, runs the spec, verifies the expected executable, then executes bundled `--version` and `--help` smoke checks. `PYTHON_BIN` can select the interpreter used only when the build venv must first be created.
 
 ## Test functions and commands
 
@@ -227,16 +228,31 @@ These tests reuse `test_listener` loaders and main-block helpers. All process la
 | `test_main_configures_last_will_before_connect_and_reuses_callbacks` | Checks main-block Will settings/order and existing callback registration. |
 | `test_topic_validation_handles_utf8_byte_limit` | Checks byte length rather than character length and rejects empty/wildcard/null topics. |
 
-## PyInstaller spec: every operation
+## PyInstaller build: every operation
+
+### `mqtt-listener.spec`
 
 - `Path(SPECPATH)` resolves the project directory from the spec's location, so its entry-script path is explicit.
 - `collect_all('paho.mqtt')` supplies Paho submodules, data, and binaries, including modules imported indirectly. Python standard-library modules referenced by the script are discovered by PyInstaller's analysis.
-- `datas.append((str(project / 'VERSION'), '.'))` puts the shared version file at the bundle root beside the entry script so `--version` works in the executable.
-- `Analysis([...], pathex=[...], binaries=..., datas=..., hiddenimports=...)` analyzes the existing listener and collected MQTT dependencies. Empty hook/exclusion lists use default hooks and exclude no modules; `noarchive=False` allows Python-module archiving.
+- `datas.append((str(project / 'VERSION'), '.'))` puts the shared version file into the bundle so `--version` uses the same release number as source execution.
+- `Analysis([...], pathex=[...], binaries=..., datas=..., hiddenimports=...)` analyzes the existing listener and collected MQTT dependencies. Empty hook/exclusion lists use default hooks and exclude no requested modules; `noarchive=False` permits PyInstaller's Python-module archive.
 - `PYZ(analysis.pure)` builds the bundled Python module archive.
-- `EXE(...)` includes that archive, scripts, binaries, and data in one executable. `('u', None, 'OPTION')` enables unbuffered Python stdout/stderr inside the bundle for service logs. The name is `mqtt-listener`; `console=True` preserves normal CLI/log output. `debug=False`, `strip=False`, and `upx=False` disable debug bootloader output, binary stripping, and UPX compression. `bootloader_ignore_signals=False` retains ordinary bootloader signal behavior.
-- There is no `COLLECT` stage because this spec produces a one-file executable. Config and referenced helper scripts are not bundled or copied: absolute command paths continue to identify the user's external files.
-- The README explains `python -m PyInstaller --clean --noconfirm mqtt-listener.spec`, requirements installation, output paths, and the executable's `--help`, `--version`, and `--config` flags. A build must match the target OS/architecture; Windows builds do not substitute for Linux service builds.
+- `EXE(...)` builds the console entry executable from the Python archive and scripts. `('u', None, 'OPTION')` enables unbuffered stdout/stderr for service logs. `exclude_binaries=True` is deliberate for onedir mode: binaries/data are collected beside the executable instead of embedded into a one-file container. The executable remains named `mqtt-listener`; debug, stripping, and UPX remain disabled.
+- `COLLECT(executable, analysis.binaries, analysis.datas, ...)` materializes the complete runtime directory as `dist/mqtt-listener/`, including the executable, Python runtime, Paho modules, `VERSION`, and required shared libraries/support files. The whole directory is the deployable unit. Config and referenced helper scripts stay external and editable.
+
+### `build-pyinstaller.sh`
+
+- `#!/bin/bash` selects Bash; `set -euo pipefail` stops on command failures, unset variables, and failed pipeline components.
+- `PROJECT_DIR=...BASH_SOURCE[0]...` resolves the directory containing the build script and `cd`s there so the build works even when invoked from another working directory.
+- `PYTHON_BIN=${PYTHON_BIN:-python3}` defaults creation of the build venv to `python3` while allowing an explicit interpreter override. `command -v` rejects a missing interpreter before changing build state.
+- If `.build-venv/bin/python` does not exist, `$PYTHON_BIN -m venv .build-venv` creates the isolated build environment. Existing valid build environments are reused.
+- `.build-venv/bin/python -m pip install -r requirements-build.txt` installs the pinned runtime/build modules into that environment. The requirements file already includes `requirements.txt`, avoiding a duplicate dependency list.
+- `rm -rf -- build dist` removes only the project-root PyInstaller output directories before rebuilding. It does not touch runtime config, source, or external command scripts.
+- `.build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec` runs the shared spec, clears PyInstaller cache data for this build, and replaces output non-interactively.
+- The script requires `dist/mqtt-listener/mqtt-listener` to exist and be executable. Missing output fails the build rather than printing success.
+- The final bundled executable runs `--version` and `--help`; the latter output is discarded after its exit status is checked. These are smoke checks only and do not connect to MQTT or read a config.
+
+The README documents the wrapper, manual equivalent, onedir layout, complete-directory deployment requirement, and how to adapt systemd `ExecStart`. A build still must match the target operating system/architecture.
 
 ## Complete-command and direct-execution usage
 
@@ -245,7 +261,7 @@ These tests reuse `test_listener` loaders and main-block helpers. All process la
 - `run tool = "/opt/my tools/runner" --label="A B"` demonstrates shell quoting of an executable path and argument with spaces; the path is a placeholder.
 - `print label = printf label:` demonstrates a command ending with a colon. `printf` writes the literal `label:` text in this example.
 - `. .venv/bin/activate` loads the environment into the current shell so the script's `env python3` header finds its dependencies. `./mqtt-listener.py --help` runs the local executable and prints usage. `--version` prints the application name and version and exits; `--config` (alias `-c`) selects its config file.
-- `chmod +x mqtt-listener.py scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh` restores execution permission for all five scripts if extraction dropped it.
+- `chmod +x mqtt-listener.py build-pyinstaller.sh scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh` restores execution permission for the listener, build wrapper, and four runtime helpers if extraction dropped it.
 - `mosquitto_pub ... -m 'docker start open-webui'` uses shell quotes to pass one complete MQTT payload; the quotes are not transmitted. Host, port, and topic flags are explained in README.
 - `sha256sum -c manifest.sha256` checks every listed release-file checksum, excluding the manifest itself. On macOS, `shasum -a 256 -c manifest.sha256` performs the same check. These validate file contents against the supplied list, not publisher identity.
 

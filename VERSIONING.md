@@ -1,6 +1,15 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds directly on the packaged `0.0.9` baseline and is `0.0.10`. `VERSION` is the single runtime version source and is exposed by `--version`. This file is the project’s canonical change log.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds directly on the packaged `0.0.10` baseline and is `0.0.11`. `VERSION` is the single runtime version source and is exposed by `--version`. This file is the project’s canonical change log.
+
+## 0.0.11 — 2026-10-02
+
+- Inspected the complete packaged 0.0.10 project before editing and ran all 52 existing offline tests successfully. This release intentionally leaves listener runtime behavior, MQTT handling, Home Assistant discovery, command dispatch, service behavior, and the four power helpers unchanged.
+- Changed the existing PyInstaller spec from one-file mode to **onedir** mode. `EXE(..., exclude_binaries=True)` now feeds a `COLLECT(...)` stage so the deployable output is the complete `dist/mqtt-listener/` directory containing the `mqtt-listener` executable plus its bundled Python runtime, Paho modules, `VERSION`, shared libraries, and support files. The existing `collect_all('paho.mqtt')` dependency collection is reused instead of adding a second module list.
+- Added executable `build-pyinstaller.sh`. It resolves the project root, creates/reuses `.build-venv`, installs pinned `requirements-build.txt`, clears only prior `build/` and `dist/` output, runs the shared spec with `--clean --noconfirm`, verifies `dist/mqtt-listener/mqtt-listener`, and smoke-tests bundled `--version` and `--help`. `PYTHON_BIN` can select the interpreter used to create the build environment.
+- Updated `.gitignore` so `commands-example.txt` is correctly re-included and PyInstaller/Python build output (`.build-venv/`, `build/`, `dist/`, `__pycache__/`, `.pyc`, `.pyo`) is ignored. No source-release build output is packaged.
+- Updated `README.md` with the preferred build script, manual equivalent, onedir layout, complete-directory deployment requirement, and systemd executable path. Updated `commented_code_map.md` to explain the complete spec/build script operation and why each command is used. The supplied disclaimer/liability wording remains present and project-local.
+- Incremented `VERSION` exactly once from `0.0.10` to `0.0.11`, refreshed `VERIFICATION.md`, regenerated `manifest.sha256`, and packaged every baseline path plus the new build script in a clean ZIP.
 
 ## 0.0.10 — 2026-10-01
 
