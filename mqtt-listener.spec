@@ -1,4 +1,5 @@
-# Run: python -m PyInstaller --clean --noconfirm mqtt-listener.spec
+# Run directly: python -m PyInstaller --clean --noconfirm mqtt-listener.spec
+# Preferred Linux wrapper: ./build-pyinstaller.sh
 # Config and user-selected command scripts stay external and editable.
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
@@ -23,13 +24,21 @@ python_archive = PYZ(analysis.pure)
 executable = EXE(
     python_archive,
     analysis.scripts,
-    analysis.binaries,
-    analysis.datas,
     [('u', None, 'OPTION')],
+    exclude_binaries=True,
     name='mqtt-listener',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=True,
+)
+bundle = COLLECT(
+    executable,
+    analysis.binaries,
+    analysis.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='mqtt-listener',
 )

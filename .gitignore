@@ -1,3 +1,9 @@
 commands*
+!commands-example.txt
 
-! commands-example.txt
+.build-venv/
+build/
+dist/
+__pycache__/
+*.pyc
+*.pyo

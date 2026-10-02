@@ -49,12 +49,12 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 cp commands-example.txt commands.txt
 chmod 600 commands.txt
-chmod +x mqtt-listener.py scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh
+chmod +x mqtt-listener.py build-pyinstaller.sh scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh
 ```
 
-`cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the listener and four helpers executable. The release ZIP records mode `0755` for these five scripts; this command restores it if your extraction tool drops Unix permissions.
+`cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the listener and four helpers executable. The release ZIP records mode `0755` for the listener, build helper, and four runtime helpers; this command restores it if your extraction tool drops Unix permissions.
 
-The four helpers are in the project-root `scripts/` folder. The example configuration uses `/root/Source/mqtt-listener-and-code-executer/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
+The four runtime helpers are in the project-root `scripts/` folder. `build-pyinstaller.sh` is a build-only helper and is not used by the listener at runtime. The example configuration uses `/root/Source/mqtt-listener-and-code-executer/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
 
 ## Configuration: all available options
 
@@ -272,44 +272,59 @@ After config changes, use `sudo systemctl restart mqtt-listener.service` (includ
 - Every match starts a new shell process; jobs can overlap without locking, limits, or deduplication. Configured shell text can perform any operation the account is allowed to perform.
 - Invalid UTF-8 can raise from the callback. The application does not comprehensively handle connection/subscription errors.
 - Config reload requires restart. Logs can include payloads and configured command text; avoid embedding secrets and restrict log access.
-- `.gitignore` excludes `commands*`. Its supplied `! commands-example.txt` pattern has a space and does not correctly re-include the example; use `!commands-example.txt` in your own repository if needed. Review ignore rules for virtual environments and secrets before committing a deployment.
+- `.gitignore` excludes local `commands*` files while explicitly keeping `commands-example.txt`, and also ignores `.build-venv/`, `build/`, `dist/`, `__pycache__/`, `.pyc`, and `.pyo` build/cache output. Review additional local secret/editor rules before committing a deployment.
 
-## Build a standalone executable with PyInstaller
+## Build a standalone onedir bundle with PyInstaller
 
-Build on the target operating system and CPU architecture. For the supplied Linux systemd service and power helpers, build on compatible Linux; a Windows `.exe` cannot run that Linux service. A PyInstaller bundle contains the Python interpreter and necessary Python modules, so the target does not need a separate Python/Paho installation. See [PyInstaller's platform/build explanation](https://pyinstaller.org/en/stable/operating-mode.html).
+Build on the target operating system and CPU architecture. For the supplied Linux systemd service and power helpers, build on compatible Linux; a Windows bundle cannot run that Linux service. A PyInstaller bundle contains the Python interpreter and required Python modules, so the target does not need a separate Python/Paho installation.
 
-From the project root on Linux:
+The preferred Linux build path is the included script:
+
+```bash
+./build-pyinstaller.sh
+```
+
+The script can be launched from any working directory. It resolves the project directory, creates/reuses `.build-venv`, installs the pinned runtime and build requirements from `requirements-build.txt`, removes previous `build/` and `dist/` output, runs PyInstaller with `--clean --noconfirm`, and performs bundled `--version` and `--help` checks. Set `PYTHON_BIN` only when you intentionally want a different Python command, for example `PYTHON_BIN=python3.13 ./build-pyinstaller.sh`.
+
+The resulting **onedir** bundle is:
+
+```text
+dist/
+└── mqtt-listener/
+    ├── mqtt-listener
+    └── _internal/ ... bundled Python, Paho, VERSION, libraries and support files
+```
+
+Run it with:
+
+```bash
+./dist/mqtt-listener/mqtt-listener --help
+./dist/mqtt-listener/mqtt-listener --version
+./dist/mqtt-listener/mqtt-listener --config /root/Source/mqtt-listener-and-code-executer/commands.txt
+```
+
+For a manual Linux build, the script is equivalent to:
 
 ```bash
 python3 -m venv .build-venv
 .build-venv/bin/python -m pip install -r requirements-build.txt
+rm -rf build dist
 .build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec
-./dist/mqtt-listener --help
-./dist/mqtt-listener --version
-./dist/mqtt-listener --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-On Windows PowerShell, use the same spec:
+On Windows, create a build environment, install `requirements-build.txt`, and run the same `mqtt-listener.spec` with PyInstaller. The spec now deliberately produces an onedir bundle rather than one executable, so the Windows entry point is `dist\mqtt-listener\mqtt-listener.exe` and its companion files must remain beside it. The supplied Bash build wrapper itself is Linux/Unix-only.
 
-```powershell
-python -m venv .build-venv
-.\.build-venv\Scripts\python.exe -m pip install -r requirements-build.txt
-.\.build-venv\Scripts\python.exe -m PyInstaller --clean --noconfirm mqtt-listener.spec
-.\dist\mqtt-listener.exe --help
-.\dist\mqtt-listener.exe --version
-```
+`-m venv` creates the build environment; `-m pip install -r` reads the pinned build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking. The spec collects the full `paho.mqtt` package, bundles `VERSION`, enables unbuffered output for service logs, and uses PyInstaller's `COLLECT` stage so the executable and all bundled modules/libraries are materialized under `dist/mqtt-listener/`. It intentionally does not embed credentials, `commands.txt`, or user-selected external command scripts.
 
-`-m venv` creates the build environment; `-m pip install -r` reads the build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking. The spec creates a single console executable named `mqtt-listener` (`.exe` on Windows), collects the entire `paho.mqtt` package, bundles `VERSION`, and enables unbuffered output for service logs. It intentionally does not embed credentials, command config, or your external scripts. The build generates `build/`, `dist/`, and cache files locally; those are excluded from the source release. [PyInstaller documents these options](https://pyinstaller.org/en/stable/usage.html).
+Keep the complete `dist/mqtt-listener/` directory together when deploying; do not copy only the executable. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your configured commands are operating-system dependencies and are not supplied by PyInstaller.
 
-Keep `commands.txt` and all scripts referenced by its command mappings on the target, at their configured paths. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your commands are operating-system dependencies; PyInstaller does not supply them. A one-file executable also needs permission to extract its bundled libraries into the target's temporary directory.
-
-To use a Linux build with the supplied service, keep its other settings and set its adapted `ExecStart` to:
+To use a Linux onedir build with the supplied service, keep its other settings and set the adapted `ExecStart` to:
 
 ```ini
-ExecStart=/root/Source/mqtt-listener-and-code-executer/mqtt-listener -c /root/Source/mqtt-listener-and-code-executer/commands.txt
+ExecStart=/root/Source/mqtt-listener-and-code-executer/dist/mqtt-listener/mqtt-listener -c /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-Install your built executable at that path first. The packaged service launches the Python source from `/root/Source/mqtt-listener-and-code-executer`; change `ExecStart` as shown only when using a standalone build. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
+Keep the complete `dist/mqtt-listener/` directory at that location. The packaged service still launches the Python source by default; change `ExecStart` only when intentionally deploying the PyInstaller bundle. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
 
 ## Offline checks
 
