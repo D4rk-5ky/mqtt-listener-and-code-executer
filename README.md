@@ -49,12 +49,12 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 cp commands-example.txt commands.txt
 chmod 600 commands.txt
-chmod +x mqtt-listener.py scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh
+chmod +x mqtt-listener.py build-pyinstaller.sh scripts/shutdown-delay.sh scripts/shutdown-cancel.sh scripts/reboot-delay.sh scripts/reboot-cancel.sh
 ```
 
-`cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the listener and four helpers executable. The release ZIP records mode `0755` for these five scripts; this command restores it if your extraction tool drops Unix permissions.
+`cd` selects the extracted directory. Python's `-m venv .venv` creates an isolated environment, and `-m pip install -r requirements.txt` installs the pinned Paho dependency there; `-r` reads the requirements file. `cp` creates your local configuration; edit it before starting. `chmod 600` restricts config read/write access to its owner; it may contain a password. `chmod +x` makes the listener and four helpers executable. The release ZIP records mode `0755` for the listener, build helper, and four runtime helpers; this command restores it if your extraction tool drops Unix permissions.
 
-The four helpers are in the project-root `scripts/` folder. The example configuration uses `/root/Source/mqtt-listener-and-code-executer/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
+The four runtime helpers are in the project-root `scripts/` folder. `build-pyinstaller.sh` is a build-only helper and is not used by the listener at runtime. The example configuration uses `/root/Source/mqtt-listener-and-code-executer/scripts/` for their absolute paths. The chosen account needs access to the directory, scripts, and config, including permission to traverse `/root` when using this location. Power commands also require appropriate operating-system privileges. Commands run as the listener's account; it does not grant privileges. Restrict who can publish to its broker topics. There is no application dry-run mode.
 
 ## Configuration: all available options
 
@@ -74,9 +74,9 @@ This is a custom line-based format, **not YAML**. Copy [commands-example.txt](co
 | `ha_discovery_prefix` | `homeassistant` | Match the discovery prefix configured in HA. Trailing `/` is removed. |
 | `ha_command_topic` | First entry in `topics` | Concrete publish topic used by every button. Must be covered by an existing `topics` subscription, including wildcard filters. No new command subscription is added. Set this explicitly if the first filter is a wildcard. |
 | `ha_availability_topic` | `mqtt-listener/<ha_device_id>/availability` | Unique retained `online`/`offline` topic for this listener. Must differ from command topics, `online_topic`, and HA's birth topic. |
-| `ha_status_topic` | `homeassistant/status` | HA birth/status topic. The listener subscribes at QoS 1 to restore discovery when HA starts. |
-| `ha_status_online_payload` | `online` | Exact, nonempty HA birth payload that triggers rediscovery. Other payloads on the birth topic are ignored. |
-| `ha_discovery_retain` | `true` | Retain discovery definitions at the broker. With `false`, reconnect and HA birth messages still resend them. Button commands always use `retain=false`. |
+| `ha_status_topic` | `homeassistant/status` | HA birth/status topic. The listener subscribes at QoS 1. A fresh non-retained online birth message restores discovery when HA starts; a retained online replay delivered immediately after subscription is ignored because reconnect discovery was already published by `on_connect()`. |
+| `ha_status_online_payload` | `online` | Exact, nonempty HA birth payload that triggers rediscovery only when the received birth message is non-retained. Other payloads and retained replays on the birth topic are ignored. |
+| `ha_discovery_retain` | `true` | Retain discovery definitions at the broker. With `false`, reconnect and fresh non-retained HA birth messages still resend them. Button commands always use `retain=false`. |
 | `commands:` | Empty mapping | Begins `payload = shell command` mappings. The first `=` separates the fields; later `=` characters remain in the command. |
 
 Blank lines and whole lines beginning with `#` after trimming are ignored. Inline comments are **not** supported. Keys, values, command names, and commands have surrounding whitespace stripped. Duplicate keys or command names use the last value. Unknown settings do not add capabilities. Do not quote values as if this were YAML: quote characters become part of the value.
@@ -94,7 +94,7 @@ commands:
 	ping = /usr/bin/printf 'MQTT listener test\n'
 ```
 
-Omitting credentials works only if the broker allows unauthenticated access. Add both when required. Use trusted, absolute script paths; relative command paths use the listener's working directory. No config option enables TLS, dry-run, command timeouts, completion reporting, retained-message rejection, or topic-specific command maps. Keepalive is fixed at 60 seconds; subscriptions use Paho's default QoS of 0. This configuration does not encrypt broker traffic.
+Omitting credentials works only if the broker allows unauthenticated access. Add both when required. Use trusted, absolute script paths; relative command paths use the listener's working directory. No config option enables TLS, dry-run, command timeouts, completion reporting, retained **command-message** rejection, or topic-specific command maps. The reserved HA birth/status topic is the exception: retained birth replays are ignored to avoid duplicate discovery refreshes. Keepalive is fixed at 60 seconds; subscriptions use Paho's default QoS of 0. This configuration does not encrypt broker traffic.
 
 ## Announce online to Home Assistant
 
@@ -123,7 +123,7 @@ The command example uses one literal tab before each active mapping. Spaces and 
 
 ## Home Assistant device and buttons (optional)
 
-This follows Homelab-Panel's MQTT discovery approach: button entities share a device identifier and device name, their discovery definitions can be retained, and discovery is repeated on MQTT reconnect and Home Assistant birth messages. It uses HA's existing MQTT integration and the same broker and credentials as the listener. No custom HA integration files or manual entity YAML are needed. See the official [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) and [MQTT button](https://www.home-assistant.io/integrations/button.mqtt/) documentation.
+This follows Homelab-Panel's MQTT discovery approach: button entities share a device identifier and device name, their discovery definitions can be retained, and discovery is repeated on MQTT reconnect and fresh non-retained Home Assistant birth messages. Retained `online` birth replays are ignored because reconnect handling already publishes discovery once. It uses HA's existing MQTT integration and the same broker and credentials as the listener. No custom HA integration files or manual entity YAML are needed. See the official [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) and [MQTT button](https://www.home-assistant.io/integrations/button.mqtt/) documentation.
 
 1. Configure Home Assistant's MQTT integration to use the same broker, with discovery enabled and a matching discovery prefix.
 2. Copy `commands-example.txt` to your private config. The optional HA settings are placed **after MQTT settings and before `commands:`**.
@@ -153,7 +153,7 @@ This creates device **My Test Server** with button **Ping server**. Pressing it 
 
 - Discovery topic: `<ha_discovery_prefix>/button/mqtt_listener_<ha_device_id>/<command-name-sha256>/config`. All buttons share the device identifier `mqtt_listener_<ha_device_id>`. This namespace is separate from Homelab-Panel devices.
 - Discovery and availability use QoS 1. HA button presses use QoS 0 and are never retained, matching the listener's existing command delivery expectations. The listener's handling of commands sent by other publishers is unchanged.
-- HA birth messages resend discovery and retained `online`. A retained `offline` Last Will is registered before connecting so broker-detected disconnection makes the buttons unavailable. Availability describes the MQTT connection, not command completion or host health; detection can be delayed by the network/keepalive.
+- A successful MQTT connect/reconnect publishes discovery once and retained `online` availability. A later fresh **non-retained** HA birth payload resends discovery. A retained `online` birth replay received immediately after subscribing is ignored, preventing an unnecessary second discovery snapshot on startup. A retained `offline` Last Will is registered before connecting so broker-detected disconnection makes the buttons unavailable. Availability describes the MQTT connection, not command completion or host health; detection can be delayed by the network/keepalive.
 - The original `online_topic` still sends its non-retained connection announcement independently. Give it a different topic from HA availability and HA birth/status.
 - A concrete `ha_command_topic` must match an existing command subscription. For example, `topics: servers/#` can be used with `ha_command_topic: servers/test/commands`. Paho's existing topic matcher validates coverage. Avoid overlapping subscriptions, which some brokers can deliver more than once.
 - Birth/status, availability, and this device's discovery namespace are reserved before command decoding when HA discovery is enabled. Their messages cannot trigger configured commands even through a broad wildcard subscription. Other command topics keep their existing behavior.
@@ -272,52 +272,76 @@ After config changes, use `sudo systemctl restart mqtt-listener.service` (includ
 - Every match starts a new shell process; jobs can overlap without locking, limits, or deduplication. Configured shell text can perform any operation the account is allowed to perform.
 - Invalid UTF-8 can raise from the callback. The application does not comprehensively handle connection/subscription errors.
 - Config reload requires restart. Logs can include payloads and configured command text; avoid embedding secrets and restrict log access.
-- `.gitignore` excludes `commands*`. Its supplied `! commands-example.txt` pattern has a space and does not correctly re-include the example; use `!commands-example.txt` in your own repository if needed. Review ignore rules for virtual environments and secrets before committing a deployment.
+- `.gitignore` excludes local `commands*` files while explicitly keeping `commands-example.txt`. Generated PyInstaller state lives under the dedicated `.pyinstaller-build/` directory and is ignored; generated `dist/` output is ignored as well. Legacy `.build-venv/` and `build/` paths remain ignored so stale output from older releases cannot be committed accidentally. Python cache files are also ignored. Review additional local secret/editor rules before committing a deployment.
 
 ## Build a standalone executable with PyInstaller
 
-Build on the target operating system and CPU architecture. For the supplied Linux systemd service and power helpers, build on compatible Linux; a Windows `.exe` cannot run that Linux service. A PyInstaller bundle contains the Python interpreter and necessary Python modules, so the target does not need a separate Python/Paho installation. See [PyInstaller's platform/build explanation](https://pyinstaller.org/en/stable/operating-mode.html).
+Build on the target operating system and CPU architecture. For the supplied Linux systemd service and power helpers, build on compatible Linux; a Windows executable cannot run that Linux service. A PyInstaller one-file executable contains the Python interpreter and required Python modules, so the target does not need a separate Python/Paho installation.
 
-From the project root on Linux:
+The preferred Linux build path is the included script:
 
 ```bash
-python3 -m venv .build-venv
-.build-venv/bin/python -m pip install -r requirements-build.txt
-.build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec
-./dist/mqtt-listener --help
-./dist/mqtt-listener --version
-./dist/mqtt-listener --config /root/Source/mqtt-listener-and-code-executer/commands.txt
+./build-pyinstaller.sh
 ```
 
-On Windows PowerShell, use the same spec:
+The script can be launched from any working directory. It resolves the project directory, creates/reuses `.pyinstaller-build/venv`, installs the pinned runtime and build requirements from `requirements-build.txt`, removes previous `.pyinstaller-build/work/` and `dist/` output, recreates an empty `dist/`, runs PyInstaller with explicit project-local work/output paths, creates `dist/README.md`, verifies the final two-file layout, and performs bundled `--version` and `--help` checks. Set `PYTHON_BIN` only when you intentionally want a different Python command, for example `PYTHON_BIN=python3.13 ./build-pyinstaller.sh`.
 
-```powershell
-python -m venv .build-venv
-.\.build-venv\Scripts\python.exe -m pip install -r requirements-build.txt
-.\.build-venv\Scripts\python.exe -m PyInstaller --clean --noconfirm mqtt-listener.spec
-.\dist\mqtt-listener.exe --help
-.\dist\mqtt-listener.exe --version
+The build script enforces this final layout:
+
+```text
+dist/
+├── SnapBeforeWatchTower
+└── README.md
 ```
 
-`-m venv` creates the build environment; `-m pip install -r` reads the build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking. The spec creates a single console executable named `mqtt-listener` (`.exe` on Windows), collects the entire `paho.mqtt` package, bundles `VERSION`, and enables unbuffered output for service logs. It intentionally does not embed credentials, command config, or your external scripts. The build generates `build/`, `dist/`, and cache files locally; those are excluded from the source release. [PyInstaller documents these options](https://pyinstaller.org/en/stable/usage.html).
+`dist/` must contain **exactly two files**: the `SnapBeforeWatchTower` executable and `README.md`. The wrapper creates the README after PyInstaller finishes and fails if any other file or directory appears there. PyInstaller work files remain outside `dist/` under `.pyinstaller-build/work/`, and the isolated builder environment remains under `.pyinstaller-build/venv/`. Both `.pyinstaller-build/` and `dist/` are gitignored.
 
-Keep `commands.txt` and all scripts referenced by its command mappings on the target, at their configured paths. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your commands are operating-system dependencies; PyInstaller does not supply them. A one-file executable also needs permission to extract its bundled libraries into the target's temporary directory.
+Run the built executable with:
 
-To use a Linux build with the supplied service, keep its other settings and set its adapted `ExecStart` to:
+```bash
+./dist/SnapBeforeWatchTower --help
+./dist/SnapBeforeWatchTower --version
+./dist/SnapBeforeWatchTower --config /root/Source/mqtt-listener-and-code-executer/commands.txt
+```
+
+For a manual Linux build, the wrapper's essential build steps are:
+
+```bash
+mkdir -p .pyinstaller-build
+python3 -m venv .pyinstaller-build/venv
+.pyinstaller-build/venv/bin/python -m pip install -r requirements-build.txt
+rm -rf .pyinstaller-build/work dist
+mkdir -p .pyinstaller-build/work dist
+.pyinstaller-build/venv/bin/python -m PyInstaller --clean --noconfirm \
+  --distpath "$PWD/dist" --workpath "$PWD/.pyinstaller-build/work" mqtt-listener.spec
+```
+
+The wrapper adds checks around those commands, writes `dist/README.md`, and accepts the build only when `dist/SnapBeforeWatchTower` is executable and the top level of `dist/` contains exactly those two files and nothing else.
+
+On Windows, create a build environment, install `requirements-build.txt`, and run the same `mqtt-listener.spec` with PyInstaller. The one-file spec produces `dist\SnapBeforeWatchTower.exe`; the supplied Bash wrapper and its exact Linux path/permission checks are Linux/Unix-only.
+
+`-m venv` creates the build environment; `-m pip install -r` reads the pinned build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking; `--distpath` and `--workpath` keep final output and temporary build work in explicitly separated directories. The spec collects the full `paho.mqtt` package, bundles `VERSION`, enables unbuffered output for service logs, and embeds the analyzed binaries/data into the single executable. It intentionally does not embed credentials, `commands.txt`, or user-selected external command scripts.
+
+A one-file PyInstaller executable extracts its embedded runtime to a temporary directory while it is running; that runtime extraction is managed by PyInstaller and does not add companion files to the project's `dist/` directory. The only non-executable file deliberately placed in `dist/` by the build wrapper is its generated `README.md`. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your configured commands are operating-system dependencies and are not supplied by PyInstaller.
+
+To use the Linux executable with the supplied service, keep its other settings and set the adapted `ExecStart` to:
 
 ```ini
-ExecStart=/root/Source/mqtt-listener-and-code-executer/mqtt-listener -c /root/Source/mqtt-listener-and-code-executer/commands.txt
+ExecStart=/root/Source/mqtt-listener-and-code-executer/dist/SnapBeforeWatchTower -c /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-Install your built executable at that path first. The packaged service launches the Python source from `/root/Source/mqtt-listener-and-code-executer`; change `ExecStart` as shown only when using a standalone build. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
+The packaged service still launches the Python source by default; change `ExecStart` only when intentionally deploying the PyInstaller executable. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
 
 ## Offline checks
 
 ```bash
 python3 -B -m unittest discover -s tests -v
+sha256sum -c manifest.sha256
+python3 -B mqtt-listener.py --help
+python3 -B mqtt-listener.py --version
 ```
 
-`-B` suppresses bytecode files. `-m unittest` invokes the test runner; `discover -s tests` selects the test directory and `-v` prints individual results. Tests mock MQTT and process launches: they never connect to a broker or execute configured commands. See [VERIFICATION.md](VERIFICATION.md) for release checks and untested deployment behavior.
+`-B` suppresses normal bytecode-cache creation. `-m unittest` invokes the test runner; `discover -s tests` selects the test directory and `-v` prints individual results. Tests mock MQTT and process launches: they never connect to a broker or execute configured commands. `sha256sum -c` verifies every file listed in the release manifest; on macOS use `shasum -a 256 -c manifest.sha256`. The direct help/version commands require the pinned Paho dependency because the listener imports it before argument parsing, but neither command reads your config or connects to a broker. Checksums validate release contents, not publisher identity. See [VERIFICATION.md](VERIFICATION.md) for release checks and untested deployment behavior.
 
 ## License
 

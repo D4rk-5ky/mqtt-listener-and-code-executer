@@ -1,6 +1,58 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds on `0.0.7` and is `0.0.8`. The original supplied archive is `0.0.6`. `VERSION` is the single version source and is exposed by `--version`. Keep this existing uppercase filename as the project’s canonical versioning log.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds directly on the packaged `0.0.13` baseline and is `0.0.14`. `VERSION` is the single runtime version source and is exposed by `--version`. This file is the project’s canonical change log.
+
+
+## 0.0.14 — 2026-10-02
+
+- Corrected the PyInstaller deployable name to `SnapBeforeWatchTower` so the build output matches the explicitly requested `dist/README.md` wording.
+- `build-pyinstaller.sh` now reserves `dist/` for exactly two top-level files: `dist/SnapBeforeWatchTower` and `dist/README.md`; any third file or directory fails the build.
+- The generated `dist/README.md` now includes the requested statements exactly: `dist/` is the PyInstaller output location, the expected output is `dist/SnapBeforeWatchTower`, the build command is `./build-pyinstaller.sh`, and generated binaries must not be confused with source files.
+- PyInstaller work files and the isolated build environment remain under the ignored `.pyinstaller-build/` directory rather than `dist/`.
+- Runtime MQTT behavior, source entry point (`mqtt-listener.py`), configuration format, Home Assistant behavior, tests, and service source behavior are otherwise unchanged.
+
+## 0.0.13 — 2026-10-02
+
+- Inspected and verified the complete packaged 0.0.12 project before editing; all 52 existing offline tests passed. Runtime MQTT, command execution, Home Assistant discovery, service behavior, configuration, dependencies, and power-helper behavior remain unchanged.
+- Changed `build-pyinstaller.sh` so all build-only state lives outside `dist/` under the dedicated `.pyinstaller-build/` tree: `.pyinstaller-build/venv/` for the isolated build environment and `.pyinstaller-build/work/` for PyInstaller work files.
+- `dist/` is now reserved for exactly two deployable files. After building the one-file executable at `dist/mqtt-listener`, the wrapper creates `dist/README.md` explaining that `dist/` is the PyInstaller output location, the expected executable path, the `./build-pyinstaller.sh` command, and that generated binaries are not source files. Any third file/directory causes the build to fail.
+- Updated `.gitignore` to ignore `.pyinstaller-build/` and `dist/`. The legacy `.build-venv/` and `build/` paths remain ignored so stale older-build output cannot be committed accidentally.
+- Updated `README.md`, `commented_code_map.md`, `VERIFICATION.md`, `VERSION`, and `manifest.sha256` for the new two-file `dist/` contract and build-workspace layout.
+
+## 0.0.12 — 2026-10-02
+
+- Inspected the complete packaged 0.0.11 project before editing. This release changes only PyInstaller build/packaging behavior and release documentation/version metadata; listener runtime MQTT/command/Home Assistant behavior, service behavior, configuration, dependencies, tests, and power helpers remain unchanged.
+- Changed `mqtt-listener.spec` from the 0.0.11 onedir layout back to a **one-file** executable. `analysis.binaries` and `analysis.datas` are passed directly into `EXE(...)` and the `COLLECT(...)` stage is removed, while the existing `collect_all('paho.mqtt')`, bundled `VERSION`, console mode, and unbuffered-output option are retained.
+- Strengthened `build-pyinstaller.sh` so it removes old `build/` and `dist/`, recreates `dist/` empty, verifies that it is empty before building, explicitly uses project-local `--distpath`/`--workpath`, then accepts the build only if `dist/mqtt-listener` exists as an executable and is the **only** top-level entry in `dist/`. Any extra file or directory causes the build to fail and list the unexpected entries.
+- Updated `README.md` and `commented_code_map.md` for the single-executable layout (`dist/mqtt-listener`), build guards, Windows one-file output, PyInstaller temporary runtime extraction, and the systemd executable path. The source release still excludes generated `dist/`, `build/`, `.build-venv/`, Python bytecode, and temporary files.
+- Incremented `VERSION` exactly once from `0.0.11` to `0.0.12`, refreshed `VERIFICATION.md`, regenerated `manifest.sha256`, and packaged every 0.0.11 project path with no path removals or additions.
+
+## 0.0.11 — 2026-10-02
+
+- Inspected the complete packaged 0.0.10 project before editing and ran all 52 existing offline tests successfully. This release intentionally leaves listener runtime behavior, MQTT handling, Home Assistant discovery, command dispatch, service behavior, and the four power helpers unchanged.
+- Changed the existing PyInstaller spec from one-file mode to **onedir** mode. `EXE(..., exclude_binaries=True)` now feeds a `COLLECT(...)` stage so the deployable output is the complete `dist/mqtt-listener/` directory containing the `mqtt-listener` executable plus its bundled Python runtime, Paho modules, `VERSION`, shared libraries, and support files. The existing `collect_all('paho.mqtt')` dependency collection is reused instead of adding a second module list.
+- Added executable `build-pyinstaller.sh`. It resolves the project root, creates/reuses `.build-venv`, installs pinned `requirements-build.txt`, clears only prior `build/` and `dist/` output, runs the shared spec with `--clean --noconfirm`, verifies `dist/mqtt-listener/mqtt-listener`, and smoke-tests bundled `--version` and `--help`. `PYTHON_BIN` can select the interpreter used to create the build environment.
+- Updated `.gitignore` so `commands-example.txt` is correctly re-included and PyInstaller/Python build output (`.build-venv/`, `build/`, `dist/`, `__pycache__/`, `.pyc`, `.pyo`) is ignored. No source-release build output is packaged.
+- Updated `README.md` with the preferred build script, manual equivalent, onedir layout, complete-directory deployment requirement, and systemd executable path. Updated `commented_code_map.md` to explain the complete spec/build script operation and why each command is used. The supplied disclaimer/liability wording remains present and project-local.
+- Incremented `VERSION` exactly once from `0.0.10` to `0.0.11`, refreshed `VERIFICATION.md`, regenerated `manifest.sha256`, and packaged every baseline path plus the new build script in a clean ZIP.
+
+## 0.0.10 — 2026-10-01
+
+- Inspected the complete packaged 0.0.9 project before editing and ran its 52-test offline suite successfully. The reported Home Assistant issue was confirmed in the discovery refresh path: `on_connect()` publishes discovery immediately after subscribing to the HA birth/status topic, while `on_message()` previously treated a retained broker replay of the same `online` birth payload as a second fresh birth and republished the full snapshot.
+- Fixed only that HA metadata path: retained messages on the configured HA birth/status topic are still reserved and ignored for command execution, but now they also do **not** trigger rediscovery. A matching **non-retained** birth message still republishes discovery, preserving recovery after a genuine later HA restart/birth. Ordinary command topics keep their existing retained/repeated-message behavior.
+- Updated the existing HA regression test to prove both sides of the contract: retained `online` causes zero discovery publishes and no shell launch; fresh non-retained default/custom birth payloads still republish discovery and never execute commands. The overall test count remains 52 because the existing birth test was strengthened rather than duplicated.
+- Updated `README.md`, `commands-example.txt`, and `commented_code_map.md` to describe the retained-replay guard and distinguish it from normal command-message handling. No configuration key, dependency, service directive, helper script, command mapping, discovery topic, entity ID algorithm, button QoS/retain behavior, or CLI flag changed.
+- Incremented `VERSION` exactly once from `0.0.9` to `0.0.10`, refreshed `VERIFICATION.md`, and regenerated `manifest.sha256`. The final package preserves every 0.0.9 path and adds or removes no project files.
+
+## 0.0.9 — 2026-10-01
+
+- Inspected all 20 files in the uploaded 0.0.8 ZIP before editing and ran its complete 52-test offline suite successfully. Reviewed the listener, service, build spec, configuration example, four shell helpers, all tests, README, code map, verification report, version history, and checksum manifest as one baseline.
+- Found and corrected a release-provenance inconsistency: the uploaded `manifest.sha256` referenced `previous-release-manifest.json` and `uploaded-release-manifest.json`, but neither file was present in the ZIP. The uploaded verification text also described archive counts/files that did not match the supplied 0.0.8 archive. No missing historical file was fabricated.
+- Added `uploaded-release-manifest.json`, generated directly from the supplied 0.0.8 ZIP. It records the exact 20-file input inventory, sizes, SHA-256 hashes, ZIP permission fields, source-archive SHA-256, and the two stale manifest references that were absent from the upload.
+- Preserved runtime behavior: `mqtt-listener.py`, `mqtt-listener.service`, `mqtt-listener.spec`, both requirements files, `commands-example.txt`, all four power helpers, and all three test modules are unchanged from the uploaded 0.0.8 baseline. Existing shell execution, retained/repeated-message behavior, MQTT subscriptions, Home Assistant discovery, Last Will, and helper safety limitations are therefore unchanged.
+- Confirmed the existing CLI already exposes `-h`/`--help`, `--version`, and required `-c`/`--config` with descriptive help. Confirmed the configuration example already includes every supported listener and Home Assistant setting, so no new runtime option or duplicate parser was added.
+- Updated README current-use verification commands, the full commented code map, this change log, and `VERIFICATION.md`. The supplied disclaimer/liability text remains in README with project-local links and no unrelated project name. Regenerated `manifest.sha256` so it references only files actually included in 0.0.9.
+- Incremented `VERSION` exactly once from `0.0.8` to `0.0.9`. The final package preserves all 20 original project paths, adds only the actual-upload provenance manifest, excludes bytecode/build/temp caches, and is verified against both staging and the uploaded archive inventory.
 
 ## 0.0.8 — 2026-09-28
 
