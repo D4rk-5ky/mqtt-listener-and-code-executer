@@ -1,6 +1,31 @@
 # Versioning and changes
 
-Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds directly on the packaged `0.0.10` baseline and is `0.0.11`. `VERSION` is the single runtime version source and is exposed by `--version`. This file is the project’s canonical change log.
+Every created release increments by exactly `0.0.1`. The patch component ranges from 0 to 99: `0.0.98` -> `0.0.99` -> `0.1.0`. Never create `0.0.100`. The initial unversioned source was assigned `0.0.1`; the current release builds directly on the packaged `0.0.13` baseline and is `0.0.14`. `VERSION` is the single runtime version source and is exposed by `--version`. This file is the project’s canonical change log.
+
+
+## 0.0.14 — 2026-10-02
+
+- Corrected the PyInstaller deployable name to `SnapBeforeWatchTower` so the build output matches the explicitly requested `dist/README.md` wording.
+- `build-pyinstaller.sh` now reserves `dist/` for exactly two top-level files: `dist/SnapBeforeWatchTower` and `dist/README.md`; any third file or directory fails the build.
+- The generated `dist/README.md` now includes the requested statements exactly: `dist/` is the PyInstaller output location, the expected output is `dist/SnapBeforeWatchTower`, the build command is `./build-pyinstaller.sh`, and generated binaries must not be confused with source files.
+- PyInstaller work files and the isolated build environment remain under the ignored `.pyinstaller-build/` directory rather than `dist/`.
+- Runtime MQTT behavior, source entry point (`mqtt-listener.py`), configuration format, Home Assistant behavior, tests, and service source behavior are otherwise unchanged.
+
+## 0.0.13 — 2026-10-02
+
+- Inspected and verified the complete packaged 0.0.12 project before editing; all 52 existing offline tests passed. Runtime MQTT, command execution, Home Assistant discovery, service behavior, configuration, dependencies, and power-helper behavior remain unchanged.
+- Changed `build-pyinstaller.sh` so all build-only state lives outside `dist/` under the dedicated `.pyinstaller-build/` tree: `.pyinstaller-build/venv/` for the isolated build environment and `.pyinstaller-build/work/` for PyInstaller work files.
+- `dist/` is now reserved for exactly two deployable files. After building the one-file executable at `dist/mqtt-listener`, the wrapper creates `dist/README.md` explaining that `dist/` is the PyInstaller output location, the expected executable path, the `./build-pyinstaller.sh` command, and that generated binaries are not source files. Any third file/directory causes the build to fail.
+- Updated `.gitignore` to ignore `.pyinstaller-build/` and `dist/`. The legacy `.build-venv/` and `build/` paths remain ignored so stale older-build output cannot be committed accidentally.
+- Updated `README.md`, `commented_code_map.md`, `VERIFICATION.md`, `VERSION`, and `manifest.sha256` for the new two-file `dist/` contract and build-workspace layout.
+
+## 0.0.12 — 2026-10-02
+
+- Inspected the complete packaged 0.0.11 project before editing. This release changes only PyInstaller build/packaging behavior and release documentation/version metadata; listener runtime MQTT/command/Home Assistant behavior, service behavior, configuration, dependencies, tests, and power helpers remain unchanged.
+- Changed `mqtt-listener.spec` from the 0.0.11 onedir layout back to a **one-file** executable. `analysis.binaries` and `analysis.datas` are passed directly into `EXE(...)` and the `COLLECT(...)` stage is removed, while the existing `collect_all('paho.mqtt')`, bundled `VERSION`, console mode, and unbuffered-output option are retained.
+- Strengthened `build-pyinstaller.sh` so it removes old `build/` and `dist/`, recreates `dist/` empty, verifies that it is empty before building, explicitly uses project-local `--distpath`/`--workpath`, then accepts the build only if `dist/mqtt-listener` exists as an executable and is the **only** top-level entry in `dist/`. Any extra file or directory causes the build to fail and list the unexpected entries.
+- Updated `README.md` and `commented_code_map.md` for the single-executable layout (`dist/mqtt-listener`), build guards, Windows one-file output, PyInstaller temporary runtime extraction, and the systemd executable path. The source release still excludes generated `dist/`, `build/`, `.build-venv/`, Python bytecode, and temporary files.
+- Incremented `VERSION` exactly once from `0.0.11` to `0.0.12`, refreshed `VERIFICATION.md`, regenerated `manifest.sha256`, and packaged every 0.0.11 project path with no path removals or additions.
 
 ## 0.0.11 — 2026-10-02
 

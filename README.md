@@ -272,11 +272,11 @@ After config changes, use `sudo systemctl restart mqtt-listener.service` (includ
 - Every match starts a new shell process; jobs can overlap without locking, limits, or deduplication. Configured shell text can perform any operation the account is allowed to perform.
 - Invalid UTF-8 can raise from the callback. The application does not comprehensively handle connection/subscription errors.
 - Config reload requires restart. Logs can include payloads and configured command text; avoid embedding secrets and restrict log access.
-- `.gitignore` excludes local `commands*` files while explicitly keeping `commands-example.txt`, and also ignores `.build-venv/`, `build/`, `dist/`, `__pycache__/`, `.pyc`, and `.pyo` build/cache output. Review additional local secret/editor rules before committing a deployment.
+- `.gitignore` excludes local `commands*` files while explicitly keeping `commands-example.txt`. Generated PyInstaller state lives under the dedicated `.pyinstaller-build/` directory and is ignored; generated `dist/` output is ignored as well. Legacy `.build-venv/` and `build/` paths remain ignored so stale output from older releases cannot be committed accidentally. Python cache files are also ignored. Review additional local secret/editor rules before committing a deployment.
 
-## Build a standalone onedir bundle with PyInstaller
+## Build a standalone executable with PyInstaller
 
-Build on the target operating system and CPU architecture. For the supplied Linux systemd service and power helpers, build on compatible Linux; a Windows bundle cannot run that Linux service. A PyInstaller bundle contains the Python interpreter and required Python modules, so the target does not need a separate Python/Paho installation.
+Build on the target operating system and CPU architecture. For the supplied Linux systemd service and power helpers, build on compatible Linux; a Windows executable cannot run that Linux service. A PyInstaller one-file executable contains the Python interpreter and required Python modules, so the target does not need a separate Python/Paho installation.
 
 The preferred Linux build path is the included script:
 
@@ -284,47 +284,53 @@ The preferred Linux build path is the included script:
 ./build-pyinstaller.sh
 ```
 
-The script can be launched from any working directory. It resolves the project directory, creates/reuses `.build-venv`, installs the pinned runtime and build requirements from `requirements-build.txt`, removes previous `build/` and `dist/` output, runs PyInstaller with `--clean --noconfirm`, and performs bundled `--version` and `--help` checks. Set `PYTHON_BIN` only when you intentionally want a different Python command, for example `PYTHON_BIN=python3.13 ./build-pyinstaller.sh`.
+The script can be launched from any working directory. It resolves the project directory, creates/reuses `.pyinstaller-build/venv`, installs the pinned runtime and build requirements from `requirements-build.txt`, removes previous `.pyinstaller-build/work/` and `dist/` output, recreates an empty `dist/`, runs PyInstaller with explicit project-local work/output paths, creates `dist/README.md`, verifies the final two-file layout, and performs bundled `--version` and `--help` checks. Set `PYTHON_BIN` only when you intentionally want a different Python command, for example `PYTHON_BIN=python3.13 ./build-pyinstaller.sh`.
 
-The resulting **onedir** bundle is:
+The build script enforces this final layout:
 
 ```text
 dist/
-└── mqtt-listener/
-    ├── mqtt-listener
-    └── _internal/ ... bundled Python, Paho, VERSION, libraries and support files
+├── SnapBeforeWatchTower
+└── README.md
 ```
 
-Run it with:
+`dist/` must contain **exactly two files**: the `SnapBeforeWatchTower` executable and `README.md`. The wrapper creates the README after PyInstaller finishes and fails if any other file or directory appears there. PyInstaller work files remain outside `dist/` under `.pyinstaller-build/work/`, and the isolated builder environment remains under `.pyinstaller-build/venv/`. Both `.pyinstaller-build/` and `dist/` are gitignored.
+
+Run the built executable with:
 
 ```bash
-./dist/mqtt-listener/mqtt-listener --help
-./dist/mqtt-listener/mqtt-listener --version
-./dist/mqtt-listener/mqtt-listener --config /root/Source/mqtt-listener-and-code-executer/commands.txt
+./dist/SnapBeforeWatchTower --help
+./dist/SnapBeforeWatchTower --version
+./dist/SnapBeforeWatchTower --config /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-For a manual Linux build, the script is equivalent to:
+For a manual Linux build, the wrapper's essential build steps are:
 
 ```bash
-python3 -m venv .build-venv
-.build-venv/bin/python -m pip install -r requirements-build.txt
-rm -rf build dist
-.build-venv/bin/python -m PyInstaller --clean --noconfirm mqtt-listener.spec
+mkdir -p .pyinstaller-build
+python3 -m venv .pyinstaller-build/venv
+.pyinstaller-build/venv/bin/python -m pip install -r requirements-build.txt
+rm -rf .pyinstaller-build/work dist
+mkdir -p .pyinstaller-build/work dist
+.pyinstaller-build/venv/bin/python -m PyInstaller --clean --noconfirm \
+  --distpath "$PWD/dist" --workpath "$PWD/.pyinstaller-build/work" mqtt-listener.spec
 ```
 
-On Windows, create a build environment, install `requirements-build.txt`, and run the same `mqtt-listener.spec` with PyInstaller. The spec now deliberately produces an onedir bundle rather than one executable, so the Windows entry point is `dist\mqtt-listener\mqtt-listener.exe` and its companion files must remain beside it. The supplied Bash build wrapper itself is Linux/Unix-only.
+The wrapper adds checks around those commands, writes `dist/README.md`, and accepts the build only when `dist/SnapBeforeWatchTower` is executable and the top level of `dist/` contains exactly those two files and nothing else.
 
-`-m venv` creates the build environment; `-m pip install -r` reads the pinned build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking. The spec collects the full `paho.mqtt` package, bundles `VERSION`, enables unbuffered output for service logs, and uses PyInstaller's `COLLECT` stage so the executable and all bundled modules/libraries are materialized under `dist/mqtt-listener/`. It intentionally does not embed credentials, `commands.txt`, or user-selected external command scripts.
+On Windows, create a build environment, install `requirements-build.txt`, and run the same `mqtt-listener.spec` with PyInstaller. The one-file spec produces `dist\SnapBeforeWatchTower.exe`; the supplied Bash wrapper and its exact Linux path/permission checks are Linux/Unix-only.
 
-Keep the complete `dist/mqtt-listener/` directory together when deploying; do not copy only the executable. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your configured commands are operating-system dependencies and are not supplied by PyInstaller.
+`-m venv` creates the build environment; `-m pip install -r` reads the pinned build dependencies, including the runtime requirements. `-m PyInstaller` runs the builder. `--clean` clears PyInstaller caches before building; `--noconfirm` permits replacement of build output without asking; `--distpath` and `--workpath` keep final output and temporary build work in explicitly separated directories. The spec collects the full `paho.mqtt` package, bundles `VERSION`, enables unbuffered output for service logs, and embeds the analyzed binaries/data into the single executable. It intentionally does not embed credentials, `commands.txt`, or user-selected external command scripts.
 
-To use a Linux onedir build with the supplied service, keep its other settings and set the adapted `ExecStart` to:
+A one-file PyInstaller executable extracts its embedded runtime to a temporary directory while it is running; that runtime extraction is managed by PyInstaller and does not add companion files to the project's `dist/` directory. The only non-executable file deliberately placed in `dist/` by the build wrapper is its generated `README.md`. Bash, systemd, shutdown/reboot utilities, permissions, and other programs invoked by your configured commands are operating-system dependencies and are not supplied by PyInstaller.
+
+To use the Linux executable with the supplied service, keep its other settings and set the adapted `ExecStart` to:
 
 ```ini
-ExecStart=/root/Source/mqtt-listener-and-code-executer/dist/mqtt-listener/mqtt-listener -c /root/Source/mqtt-listener-and-code-executer/commands.txt
+ExecStart=/root/Source/mqtt-listener-and-code-executer/dist/SnapBeforeWatchTower -c /root/Source/mqtt-listener-and-code-executer/commands.txt
 ```
 
-Keep the complete `dist/mqtt-listener/` directory at that location. The packaged service still launches the Python source by default; change `ExecStart` only when intentionally deploying the PyInstaller bundle. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
+The packaged service still launches the Python source by default; change `ExecStart` only when intentionally deploying the PyInstaller executable. Do not add Python's `-u` flag to the executable; the spec already enables unbuffered output.
 
 ## Offline checks
 
