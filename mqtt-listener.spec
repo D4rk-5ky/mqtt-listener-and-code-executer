@@ -24,21 +24,13 @@ python_archive = PYZ(analysis.pure)
 executable = EXE(
     python_archive,
     analysis.scripts,
+    analysis.binaries,
+    analysis.datas,
     [('u', None, 'OPTION')],
-    exclude_binaries=True,
-    name='mqtt-listener',
+    name='SnapBeforeWatchTower',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=True,
-)
-bundle = COLLECT(
-    executable,
-    analysis.binaries,
-    analysis.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name='mqtt-listener',
 )

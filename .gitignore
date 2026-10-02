@@ -1,9 +1,14 @@
 commands*
 !commands-example.txt
 
+# Generated PyInstaller/Python build state
+.pyinstaller-build/
+dist/
+
+# Legacy build paths from older releases; keep ignored if they still exist locally.
 .build-venv/
 build/
-dist/
+
 __pycache__/
 *.pyc
 *.pyo
